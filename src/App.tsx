@@ -105,7 +105,12 @@ async function generateObjectivesViaClaude(params: {
     `Write exactly ${params.count} numbered learning objectives following the instructions.`,
   ].join("\n");
 
-  const response = await fetch("http://localhost:3001/api/generate", {
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const apiBase = isLocalhost ? "http://localhost:3001" : "";
+
+  const response = await fetch(`${apiBase}/api/generate`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
