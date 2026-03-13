@@ -16,6 +16,12 @@ type Objective = {
   text: string;
 };
 
+type Activity = {
+  activityType: string;
+  description: string;
+  whyItFits: string;
+};
+
 type Theme = "dark" | "light";
 
 function clampInt(value: number, min: number, max: number) {
@@ -159,11 +165,92 @@ async function generateObjectivesViaClaude(params: {
   });
 }
 
+async function fetchActivitiesForObjective(params: {
+  objectiveText: string;
+  blooms: BloomsLevel;
+}): Promise<Activity[]> {
+  const systemPrompt =
+    "You are an expert instructional designer. Given a learning objective and its Bloom's level, suggest 2 to 3 instructional activities that match that level. Return only a JSON array of objects. Each object must have exactly these three keys: \"activityType\" (string, e.g. 'Think-pair-share', 'Concept map'), \"description\" (string, 1-2 sentences on how the activity works), \"whyItFits\" (string, 1 sentence on why it fits this Bloom's level). Return no other text, no markdown, only the raw JSON array.";
+
+  const userPrompt = [
+    `Bloom's level: ${params.blooms}`,
+    `Learning objective: ${params.objectiveText.trim()}`,
+    "",
+    "Return a JSON array of 2 to 3 activity objects with keys activityType, description, and whyItFits.",
+  ].join("\n");
+
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const apiBase = isLocalhost ? "http://localhost:3001" : "";
+
+  const response = await fetch(`${apiBase}/api/generate`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5",
+      max_tokens: 600,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("[Objective Writer] Activities API error:", response.status, errText);
+    throw new Error(`API error: ${response.status}. Is the proxy running?`);
+  }
+
+  const data: {
+    content?: { type: string; text?: string }[];
+  } = await response.json();
+
+  const text = (data.content && data.content[0] && data.content[0].text) || "";
+  const trimmed = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    console.error("[Objective Writer] Activities response not valid JSON:", text);
+    throw new Error("Could not parse activity suggestions.");
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Activity suggestions were not in the expected format.");
+  }
+
+  const activities: Activity[] = [];
+  for (const item of parsed) {
+    if (
+      item &&
+      typeof item === "object" &&
+      "activityType" in item &&
+      "description" in item &&
+      "whyItFits" in item &&
+      typeof (item as Activity).activityType === "string" &&
+      typeof (item as Activity).description === "string" &&
+      typeof (item as Activity).whyItFits === "string"
+    ) {
+      activities.push(item as Activity);
+    }
+  }
+
+  return activities.slice(0, 3);
+}
+
 export default function App() {
   const rawId = useId();
   const bloomsId = useId();
   const audienceId = useId();
   const countId = useId();
+  const includeActivitiesId = useId();
 
   const [rawContent, setRawContent] = useState("");
   const [blooms, setBlooms] = useState<BloomsLevel>("Understanding");
@@ -175,6 +262,13 @@ export default function App() {
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activitiesCopied, setActivitiesCopied] = useState(false);
+  const activitiesCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activitiesByObjectiveId, setActivitiesByObjectiveId] = useState<Record<string, Activity[]>>({});
+  const [loadingActivityObjectiveIds, setLoadingActivityObjectiveIds] = useState<string[]>([]);
+  const [activityErrorByObjectiveId, setActivityErrorByObjectiveId] = useState<Record<string, string>>({});
+  const [includeActivitySuggestions, setIncludeActivitySuggestions] = useState(false);
+  const [activitiesSectionExpanded, setActivitiesSectionExpanded] = useState(true);
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") return "dark";
     const stored = window.localStorage.getItem("objective-writer-theme");
@@ -202,6 +296,7 @@ export default function App() {
 
   useEffect(() => () => {
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    if (activitiesCopyTimeoutRef.current) clearTimeout(activitiesCopyTimeoutRef.current);
   }, []);
 
   function copyObjectivesToClipboard() {
@@ -217,11 +312,45 @@ export default function App() {
     });
   }
 
+  function copyActivitiesToClipboard() {
+    const list = objectives.slice(0, clampInt(count, 1, 20));
+    const parts: string[] = [];
+    list.forEach((obj, index) => {
+      parts.push(`Objective ${index + 1}`);
+      parts.push(obj.text);
+      parts.push("");
+      const activities = activitiesByObjectiveId[obj.id];
+      if (activities?.length) {
+        activities.forEach((a) => {
+          parts.push(`Activity: ${a.activityType}`);
+          parts.push(`Description: ${a.description}`);
+          parts.push(`Why it fits: ${a.whyItFits}`);
+          parts.push("");
+        });
+      }
+      if (index < list.length - 1) parts.push("");
+    });
+    const text = parts.join("\n").trim();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      if (activitiesCopyTimeoutRef.current) clearTimeout(activitiesCopyTimeoutRef.current);
+      setActivitiesCopied(true);
+      activitiesCopyTimeoutRef.current = setTimeout(() => {
+        setActivitiesCopied(false);
+        activitiesCopyTimeoutRef.current = null;
+      }, 2000);
+    });
+  }
+
   async function onGenerate() {
     setStatus("generating");
     setGenerateError(null);
+    setActivitiesByObjectiveId({});
+    setLoadingActivityObjectiveIds([]);
+    setActivityErrorByObjectiveId({});
     const trimmedContent = rawContent.trim();
     const safeCount = clampInt(count, 1, 20);
+    const wantActivities = includeActivitySuggestions;
     try {
       const results = await generateObjectivesViaClaude({
         content: trimmedContent,
@@ -231,6 +360,31 @@ export default function App() {
       });
       setObjectives(results);
       setHasGenerated(true);
+      if (wantActivities && results.length > 0) {
+        setActivitiesSectionExpanded(true);
+        const ids = results.map((o) => o.id);
+        setLoadingActivityObjectiveIds(ids);
+        setActivityErrorByObjectiveId((prev) => {
+          const next = { ...prev };
+          ids.forEach((id) => delete next[id]);
+          return next;
+        });
+        results.forEach((obj) => {
+          fetchActivitiesForObjective({ objectiveText: obj.text, blooms })
+            .then((activities) => {
+              setActivitiesByObjectiveId((prev) => ({ ...prev, [obj.id]: activities }));
+            })
+            .catch((e) => {
+              setActivityErrorByObjectiveId((prev) => ({
+                ...prev,
+                [obj.id]: e instanceof Error ? e.message : "Failed to load activities.",
+              }));
+            })
+            .finally(() => {
+              setLoadingActivityObjectiveIds((prev) => prev.filter((id) => id !== obj.id));
+            });
+        });
+      }
     } catch (e) {
       setGenerateError(e instanceof Error ? e.message : "Generation failed.");
     } finally {
@@ -347,6 +501,23 @@ export default function App() {
             />
           </div>
 
+          <div className="field fieldCheckbox">
+            <label className="checkboxLabel" htmlFor={includeActivitiesId}>
+              <input
+                id={includeActivitiesId}
+                type="checkbox"
+                className="checkbox"
+                checked={includeActivitySuggestions}
+                onChange={(e) => setIncludeActivitySuggestions(e.target.checked)}
+                aria-describedby={includeActivitiesId ? `${includeActivitiesId}-desc` : undefined}
+              />
+              <span className="checkboxText">Include activity suggestions with my objectives</span>
+            </label>
+            <span id={`${includeActivitiesId}-desc`} className="checkboxDescription">
+              When checked, suggested activities are generated for each objective after objectives load.
+            </span>
+          </div>
+
           <div className="actionsRow">
             <div className="generateBlock">
               <button className="button" disabled={!canGenerate} onClick={onGenerate}>
@@ -408,6 +579,87 @@ export default function App() {
             </div>
 
             <div className="footerNote">Refine wording as needed before publishing.</div>
+          </section>
+        )}
+
+        {hasGenerated &&
+          (loadingActivityObjectiveIds.length > 0 ||
+            Object.keys(activitiesByObjectiveId).some((id) => (activitiesByObjectiveId[id]?.length ?? 0) > 0) ||
+            Object.keys(activityErrorByObjectiveId).length > 0) && (
+          <section
+            className="panel activitiesPanel"
+            aria-label="Suggested activities"
+            aria-expanded={activitiesSectionExpanded}
+          >
+            <button
+              type="button"
+              className="activitiesPanelToggle"
+              onClick={() => setActivitiesSectionExpanded((e) => !e)}
+              aria-expanded={activitiesSectionExpanded}
+              aria-controls="activities-panel-content"
+              id="activities-panel-toggle"
+            >
+              <span className="activitiesPanelToggleTitle">Suggested Activities</span>
+              <span className="activitiesPanelToggleIcon" aria-hidden="true">
+                {activitiesSectionExpanded ? "▼" : "▶"}
+              </span>
+            </button>
+            <div
+              id="activities-panel-content"
+              className="activitiesPanelContent"
+              hidden={!activitiesSectionExpanded}
+              role="region"
+              aria-labelledby="activities-panel-toggle"
+            >
+              {objectives.slice(0, clampInt(count, 1, 20)).map((obj, index) => (
+                <div key={obj.id} className="activitiesObjectiveBlock">
+                  <h3 className="activitiesObjectiveHeading">
+                    Objective {index + 1}
+                  </h3>
+                  <p className="activitiesObjectiveText">{obj.text}</p>
+                  {loadingActivityObjectiveIds.includes(obj.id) && !activitiesByObjectiveId[obj.id]?.length && (
+                    <div className="activityLoading" aria-live="polite">
+                      Suggesting activities…
+                    </div>
+                  )}
+                  {activityErrorByObjectiveId[obj.id] && (
+                    <p className="activityError">{activityErrorByObjectiveId[obj.id]}</p>
+                  )}
+                  {activitiesByObjectiveId[obj.id]?.length > 0 && (
+                    <ul className="activityList" aria-label={`Activities for objective ${index + 1}`}>
+                      {activitiesByObjectiveId[obj.id].map((activity, idx) => (
+                        <li key={idx} className="activityItem">
+                          <span className="activityType">{activity.activityType}</span>
+                          <p className="activityDescription">{activity.description}</p>
+                          <p className="activityWhy">{activity.whyItFits}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+              {Object.keys(activitiesByObjectiveId).some(
+                (id) => (activitiesByObjectiveId[id]?.length ?? 0) > 0
+              ) && (
+                <div className="activitiesCopyRow">
+                  <button
+                    type="button"
+                    className="copyButton"
+                    onClick={copyActivitiesToClipboard}
+                    disabled={activitiesCopied}
+                  >
+                    {activitiesCopied ? (
+                      <>
+                        <span className="copyIcon" aria-hidden="true">✓</span>
+                        Copied!
+                      </>
+                    ) : (
+                      "Copy all"
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           </section>
         )}
       </main>

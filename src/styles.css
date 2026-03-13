@@ -455,6 +455,49 @@ body {
   color: var(--danger);
 }
 
+.fieldCheckbox {
+  padding: 10px 16px 0 16px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.checkbox {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkboxText {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.checkboxDescription {
+  display: block;
+  margin: 6px 0 0 28px;
+  font-size: 12px;
+  color: var(--subtle);
+  line-height: 1.4;
+}
+
+:root[data-theme="light"] .checkboxText {
+  color: var(--text);
+}
+
+:root[data-theme="light"] .checkboxDescription {
+  color: var(--subtle);
+}
+
 .objectiveList {
   list-style: decimal;
   padding: 12px 16px 6px 40px;
@@ -469,12 +512,70 @@ body {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .objectiveText {
   color: rgba(255, 255, 255, 0.90);
   line-height: 1.5;
   font-size: 13.5px;
+}
+
+.activityLoading {
+  font-size: 12px;
+  color: var(--subtle);
+  padding: 4px 0;
+}
+
+.activityError {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--danger);
+}
+
+.activityList {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+}
+
+.activityItem {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activityType {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent2);
+  letter-spacing: 0.03px;
+}
+
+.activityDescription,
+.activityWhy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.activityWhy {
+  font-size: 11.5px;
+  color: var(--subtle);
+  font-style: italic;
 }
 
 :root[data-theme="light"] .objectiveCard {
@@ -486,8 +587,140 @@ body {
   color: #111827;
 }
 
+:root[data-theme="light"] .activityList {
+  border-top-color: rgba(148, 163, 184, 0.25);
+}
+
+:root[data-theme="light"] .activityItem {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+:root[data-theme="light"] .activityType {
+  color: var(--accent2);
+}
+
+:root[data-theme="light"] .activityDescription,
+:root[data-theme="light"] .activityWhy {
+  color: var(--muted);
+}
+
+:root[data-theme="light"] .activityWhy {
+  color: var(--subtle);
+}
+
+.activitiesPanel {
+  overflow: hidden;
+}
+
+.activitiesPanelToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+  text-align: left;
+}
+
+.activitiesPanelToggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.activitiesPanelToggleTitle {
+  flex: 1;
+}
+
+.activitiesPanelToggleIcon {
+  font-size: 10px;
+  color: var(--subtle);
+}
+
+.activitiesPanelContent {
+  padding: 12px 16px 16px 16px;
+  border-top: 1px solid var(--stroke);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.activitiesPanelContent[hidden] {
+  display: none;
+}
+
+.activitiesObjectiveBlock {
+  margin-bottom: 18px;
+}
+
+.activitiesObjectiveBlock:last-child {
+  margin-bottom: 0;
+}
+
+.activitiesObjectiveHeading {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.05px;
+}
+
+.activitiesObjectiveText {
+  margin: 0 0 10px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.activitiesObjectiveBlock .activityList {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.activitiesCopyRow {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="light"] .activitiesPanelToggle:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+:root[data-theme="light"] .activitiesPanelContent {
+  border-top-color: rgba(148, 163, 184, 0.25);
+}
+
+:root[data-theme="light"] .activitiesObjectiveHeading {
+  color: var(--muted);
+}
+
+:root[data-theme="light"] .activitiesObjectiveText {
+  color: #111827;
+}
+
+:root[data-theme="light"] .activitiesObjectiveBlock .activityList {
+  border-top-color: rgba(148, 163, 184, 0.25);
+}
+
+:root[data-theme="light"] .activitiesCopyRow {
+  border-top-color: rgba(148, 163, 184, 0.25);
+}
+
 .copyRow {
   padding: 12px 16px 4px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .copyButton {
