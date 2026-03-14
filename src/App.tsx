@@ -12,6 +12,26 @@ const bloomsLevels = [
 
 type BloomsLevel = (typeof bloomsLevels)[number];
 
+const examplePresets = {
+  "food-safety": {
+    content: "This course covers food safety fundamentals for restaurant workers, including proper handwashing, temperature control for hot and cold foods, cross-contamination prevention, and safe food storage practices. Workers must pass a food handler certification exam.",
+    blooms: "Remembering" as BloomsLevel,
+    audience: "New restaurant staff",
+  },
+  "customer-service": {
+    content: "This course covers the basics of customer service for retail employees, including greeting customers, handling complaints, processing returns, and upselling techniques. Goal: employees should handle 95% of customer interactions without manager escalation.",
+    blooms: "Applying" as BloomsLevel,
+    audience: "Retail new hires",
+  },
+  "data-literacy": {
+    content: "This course covers data literacy for business analysts, including interpreting dashboards, identifying trends, questioning data sources, and distinguishing correlation from causation. Learners must evaluate reports and flag misleading visualizations.",
+    blooms: "Analyzing" as BloomsLevel,
+    audience: "Mid-level business analysts",
+  },
+} as const;
+
+type ExampleChipId = keyof typeof examplePresets;
+
 type Objective = {
   id: string;
   text: string;
@@ -256,6 +276,7 @@ export default function App() {
   const [rawContent, setRawContent] = useState("");
   const [blooms, setBlooms] = useState<BloomsLevel>("Understanding");
   const [audience, setAudience] = useState("adult learners new to the topic");
+  const [activeExampleChip, setActiveExampleChip] = useState<ExampleChipId | null>(null);
   const [count, setCount] = useState<number>(3);
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [status, setStatus] = useState<"idle" | "generating">("idle");
@@ -282,6 +303,14 @@ export default function App() {
     const stored = window.localStorage.getItem("objective-writer-theme");
     return stored === "light" || stored === "dark" ? stored : "dark";
   });
+
+  function applyExample(id: ExampleChipId) {
+    const preset = examplePresets[id];
+    setRawContent(preset.content);
+    setBlooms(preset.blooms);
+    setAudience(preset.audience);
+    setActiveExampleChip(id);
+  }
 
   const canGenerate = useMemo(() => {
     const trimmed = rawContent.trim();
@@ -498,9 +527,27 @@ export default function App() {
               className="textarea"
               placeholder="Include topics, skills, constraints, assessment expectations, and any specific measurements or performance goals you want learners to hit."
               value={rawContent}
-              onChange={(e) => setRawContent(e.target.value)}
+              onChange={(e) => {
+                setRawContent(e.target.value);
+                setActiveExampleChip(null);
+              }}
               rows={10}
             />
+            <div className="exampleChipsRow">
+              <span className="exampleChipsLabel">Try an example:</span>
+              <div className="exampleChips">
+                {(Object.keys(examplePresets) as ExampleChipId[]).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`exampleChip ${activeExampleChip === id ? "exampleChipActive" : ""}`}
+                    onClick={() => applyExample(id)}
+                  >
+                    {id === "food-safety" ? "Food Safety" : id === "customer-service" ? "Customer Service" : "Data Literacy"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="hintRow">
               <span className="hint">
                 Tip: Richer, more detailed input will support stronger, more specific objectives.
@@ -518,7 +565,10 @@ export default function App() {
                 id={bloomsId}
                 className="select"
                 value={blooms}
-                onChange={(e) => setBlooms(e.target.value as BloomsLevel)}
+                onChange={(e) => {
+                  setBlooms(e.target.value as BloomsLevel);
+                  setActiveExampleChip(null);
+                }}
               >
                 {bloomsLevels.map((lvl) => (
                   <option key={lvl} value={lvl}>
@@ -560,7 +610,10 @@ export default function App() {
               className="input"
               placeholder="e.g., first-year nursing students, new sales hires, experienced engineers…"
               value={audience}
-              onChange={(e) => setAudience(e.target.value)}
+              onChange={(e) => {
+                setAudience(e.target.value);
+                setActiveExampleChip(null);
+              }}
             />
           </div>
 
