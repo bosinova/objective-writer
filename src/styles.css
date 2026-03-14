@@ -209,6 +209,70 @@ body {
   white-space: nowrap;
 }
 
+.authSignInButton,
+.authSignOutButton {
+  appearance: none;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.authSignInButton:hover,
+.authSignOutButton:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--stroke2);
+  color: var(--text);
+}
+
+.authUserRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.authUserName {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+:root[data-theme="light"] .authSignInButton,
+:root[data-theme="light"] .authSignOutButton {
+  border-color: rgba(191, 219, 254, 0.7);
+  background: rgba(15, 23, 42, 0.2);
+  color: #e5edff;
+}
+
+:root[data-theme="light"] .authSignInButton:hover,
+:root[data-theme="light"] .authSignOutButton:hover {
+  background: rgba(15, 23, 42, 0.3);
+  border-color: rgba(191, 219, 254, 0.9);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .authUserName {
+  color: #e5edff;
+}
+
+.signInPrompt {
+  margin: 10px 16px 12px 16px;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--accent2);
+}
+
+:root[data-theme="light"] .signInPrompt {
+  color: var(--accent2);
+}
+
 .contentGrid {
   width: calc(100% - 96px);
   max-width: 900px;
@@ -443,17 +507,17 @@ body {
 }
 
 .actionsRow {
-  padding: 14px 16px 0 16px;
+  padding: 16px 16px 0 16px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 12px;
 }
 
 .generateBlock {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   width: 100%;
 }
 

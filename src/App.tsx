@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Analytics } from "@vercel/analytics/react";
+import { useUser, SignInButton, SignOutButton } from "@clerk/clerk-react";
 
 const bloomsLevels = [
   "Remembering",
@@ -304,6 +305,8 @@ export default function App() {
     return stored === "light" || stored === "dark" ? stored : "dark";
   });
 
+  const { isSignedIn, user, isLoaded } = useUser();
+
   function applyExample(id: ExampleChipId) {
     const preset = examplePresets[id];
     setRawContent(preset.content);
@@ -312,10 +315,25 @@ export default function App() {
     setActiveExampleChip(id);
   }
 
+  const isUsingPreset = useMemo(() => {
+    const trimmed = rawContent.trim();
+    const trimmedAudience = audience.trim();
+    return (Object.entries(examplePresets) as [ExampleChipId, (typeof examplePresets)[ExampleChipId]][]).some(
+      ([_, preset]) =>
+        trimmed === preset.content && blooms === preset.blooms && trimmedAudience === preset.audience
+    );
+  }, [rawContent, blooms, audience]);
+
+  const effectiveCount = isSignedIn ? count : 1;
+
   const canGenerate = useMemo(() => {
     const trimmed = rawContent.trim();
-    return trimmed.length > 0 && status !== "generating";
-  }, [rawContent, status]);
+    if (trimmed.length === 0 || status === "generating") return false;
+    if (isSignedIn) return true;
+    return isUsingPreset;
+  }, [rawContent, status, isSignedIn, isUsingPreset]);
+
+  const showSignInPrompt = !isSignedIn && rawContent.trim().length > 0 && !isUsingPreset;
 
   const showObjectiveCountWarning = useMemo(() => {
     const trimmed = rawContent.trim();
@@ -338,7 +356,7 @@ export default function App() {
   }, []);
 
   function copyObjectivesToClipboard() {
-    const list = objectives.slice(0, clampInt(count, 1, 20));
+    const list = objectives.slice(0, clampInt(effectiveCount, 1, 20));
     const text = list.map((obj, i) => `${i + 1}. ${obj.text}`).join("\n");
     navigator.clipboard.writeText(text).then(() => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -351,7 +369,7 @@ export default function App() {
   }
 
   function copyActivitiesToClipboard() {
-    const list = objectives.slice(0, clampInt(count, 1, 20));
+    const list = objectives.slice(0, clampInt(effectiveCount, 1, 20));
     const parts: string[] = [];
     list.forEach((obj, index) => {
       parts.push(`Objective ${index + 1}`);
@@ -388,7 +406,7 @@ export default function App() {
     }
     setEmailError(null);
     setEmailSending(true);
-    const list = objectives.slice(0, clampInt(count, 1, 20));
+    const list = objectives.slice(0, clampInt(effectiveCount, 1, 20));
     const objectivesPayload = list.map((obj) => ({ text: obj.text }));
     const activitiesPayload = list
       .map((obj, index) => {
@@ -441,7 +459,7 @@ export default function App() {
     setLoadingActivityObjectiveIds([]);
     setActivityErrorByObjectiveId({});
     const trimmedContent = rawContent.trim();
-    const safeCount = clampInt(count, 1, 20);
+    const safeCount = clampInt(effectiveCount, 1, 20);
     const wantActivities = includeActivitySuggestions;
     try {
       const results = await generateObjectivesViaClaude({
@@ -504,6 +522,26 @@ export default function App() {
             <span className="modeDot" aria-hidden="true" />
             <span className="modeLabel">{theme === "dark" ? "Dark mode" : "Light mode"}</span>
           </button>
+          {isLoaded && (
+            isSignedIn ? (
+              <div className="authUserRow">
+                <span className="authUserName">
+                  {user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "Signed in"}
+                </span>
+                <SignOutButton>
+                  <button type="button" className="authSignOutButton">
+                    Sign Out
+                  </button>
+                </SignOutButton>
+              </div>
+            ) : (
+              <SignInButton mode="modal">
+                <button type="button" className="authSignInButton">
+                  Sign In
+                </button>
+              </SignInButton>
+            )
+          )}
           <span className="chip">Powered by Claude</span>
         </div>
       </div>
@@ -587,10 +625,11 @@ export default function App() {
                 className="input"
                 type="number"
                 min={1}
-                max={20}
+                max={isSignedIn ? 20 : 1}
                 step={1}
-                value={count}
+                value={effectiveCount}
                 onChange={(e) => setCount(clampInt(Number(e.target.value || 1), 1, 20))}
+                disabled={!isSignedIn}
               />
               {showObjectiveCountWarning && (
                 <p className="fieldWarning">
@@ -634,6 +673,11 @@ export default function App() {
             </span>
           </div>
 
+          {showSignInPrompt && (
+            <p className="signInPrompt">
+              Sign in to use your own content and generate up to 3 objectives for free.
+            </p>
+          )}
           <div className="actionsRow">
             <div className="generateBlock">
               <button className="button" disabled={!canGenerate} onClick={onGenerate}>
@@ -643,13 +687,9 @@ export default function App() {
                 Your content is processed by Claude AI. Do not paste confidential or proprietary information.
               </p>
             </div>
-            {generateError ? (
+            {generateError && (
               <span className="callout calloutError">{generateError}</span>
-            ) : rawContent.trim() ? (
-              <span className="callout">
-                Objectives are generated by Claude.
-              </span>
-            ) : null}
+            )}
           </div>
         </section>
 
@@ -664,12 +704,12 @@ export default function App() {
               </div>
               <div className="meta">
                 <span className="chip chipStrong">{blooms}</span>
-                <span className="chip">{clampInt(count, 1, 20)} requested</span>
+                <span className="chip">{clampInt(effectiveCount, 1, 20)} requested</span>
               </div>
             </div>
 
             <ol className="objectiveList">
-              {objectives.slice(0, clampInt(count, 1, 20)).map((obj) => (
+              {objectives.slice(0, clampInt(effectiveCount, 1, 20)).map((obj) => (
                 <li key={obj.id} className="objectiveCard">
                   <div className="objectiveText">{obj.text}</div>
                 </li>
@@ -789,7 +829,7 @@ export default function App() {
               role="region"
               aria-labelledby="activities-panel-toggle"
             >
-              {objectives.slice(0, clampInt(count, 1, 20)).map((obj, index) => (
+              {objectives.slice(0, clampInt(effectiveCount, 1, 20)).map((obj, index) => (
                 <div key={obj.id} className="activitiesObjectiveBlock">
                   <h3 className="activitiesObjectiveHeading">
                     Objective {index + 1}

@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.3",
     "@vercel/analytics": "^2.0.1",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
