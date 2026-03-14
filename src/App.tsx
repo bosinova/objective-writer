@@ -264,6 +264,13 @@ export default function App() {
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activitiesCopied, setActivitiesCopied] = useState(false);
   const activitiesCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailFormLocation, setEmailFormLocation] = useState<"objectives" | "activities">("objectives");
+  const [emailValue, setEmailValue] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activitiesByObjectiveId, setActivitiesByObjectiveId] = useState<Record<string, Activity[]>>({});
   const [loadingActivityObjectiveIds, setLoadingActivityObjectiveIds] = useState<string[]>([]);
   const [activityErrorByObjectiveId, setActivityErrorByObjectiveId] = useState<Record<string, string>>({});
@@ -297,6 +304,7 @@ export default function App() {
   useEffect(() => () => {
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     if (activitiesCopyTimeoutRef.current) clearTimeout(activitiesCopyTimeoutRef.current);
+    if (emailSuccessTimeoutRef.current) clearTimeout(emailSuccessTimeoutRef.current);
   }, []);
 
   function copyObjectivesToClipboard() {
@@ -340,6 +348,60 @@ export default function App() {
         activitiesCopyTimeoutRef.current = null;
       }, 2000);
     });
+  }
+
+  async function sendEmailResults() {
+    const trimmed = emailValue.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    setEmailError(null);
+    setEmailSending(true);
+    const list = objectives.slice(0, clampInt(count, 1, 20));
+    const objectivesPayload = list.map((obj) => ({ text: obj.text }));
+    const activitiesPayload = list
+      .map((obj, index) => {
+        const activities = activitiesByObjectiveId[obj.id];
+        if (!activities?.length) return null;
+        return { objectiveIndex: index, objectiveText: obj.text, activities };
+      })
+      .filter((x): x is { objectiveIndex: number; objectiveText: string; activities: Activity[] } => x !== null);
+
+    const isLocalhost =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    const apiBase = isLocalhost ? "http://localhost:3001" : "";
+
+    try {
+      const res = await fetch(`${apiBase}/api/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          to: trimmed,
+          objectives: objectivesPayload,
+          activities: activitiesPayload.length > 0 ? activitiesPayload : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEmailError(typeof data.error === "string" ? data.error : "Failed to send email.");
+        return;
+      }
+      setEmailSuccess(true);
+      if (emailSuccessTimeoutRef.current) clearTimeout(emailSuccessTimeoutRef.current);
+      emailSuccessTimeoutRef.current = setTimeout(() => {
+        setEmailSuccess(false);
+        setShowEmailForm(false);
+        setEmailValue("");
+        setEmailFormLocation("objectives");
+        emailSuccessTimeoutRef.current = null;
+      }, 2000);
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : "Failed to send email.");
+    } finally {
+      setEmailSending(false);
+    }
   }
 
   async function onGenerate() {
@@ -576,6 +638,68 @@ export default function App() {
                   "Copy all"
                 )}
               </button>
+              {!showEmailForm || emailFormLocation !== "objectives" ? (
+                <button
+                  type="button"
+                  className="copyButton"
+                  onClick={() => {
+                    setShowEmailForm(true);
+                    setEmailFormLocation("objectives");
+                    setEmailError(null);
+                  }}
+                >
+                  Email me these results
+                </button>
+              ) : (
+                <div className="emailFormRow">
+                  <input
+                    type="email"
+                    className="emailInput"
+                    placeholder="Your email"
+                    value={emailValue}
+                    onChange={(e) => {
+                      setEmailValue(e.target.value);
+                      setEmailError(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && sendEmailResults()}
+                    disabled={emailSending}
+                    aria-label="Email address"
+                    autoComplete="email"
+                  />
+                  <button
+                    type="button"
+                    className="copyButton emailSendButton"
+                    onClick={sendEmailResults}
+                    disabled={emailSending}
+                  >
+                    {emailSending ? "Sending…" : "Send"}
+                  </button>
+                  {!emailSending && (
+                    <button
+                      type="button"
+                      className="emailCancelButton"
+                      onClick={() => {
+                        setShowEmailForm(false);
+                        setEmailValue("");
+                        setEmailError(null);
+                      }}
+                      aria-label="Cancel"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  {emailSuccess && (
+                    <span className="emailSuccessMessage" aria-live="polite">
+                      Email sent!
+                    </span>
+                  )}
+                  {emailError && (
+                    <span className="emailErrorMessage" role="alert">
+                      {emailError}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="footerNote">Refine wording as needed before publishing.</div>
@@ -657,6 +781,68 @@ export default function App() {
                       "Copy all"
                     )}
                   </button>
+                  {!showEmailForm || emailFormLocation !== "activities" ? (
+                    <button
+                      type="button"
+                      className="copyButton"
+                      onClick={() => {
+                        setShowEmailForm(true);
+                        setEmailFormLocation("activities");
+                        setEmailError(null);
+                      }}
+                    >
+                      Email me these results
+                    </button>
+                  ) : (
+                    <div className="emailFormRow">
+                      <input
+                        type="email"
+                        className="emailInput"
+                        placeholder="Your email"
+                        value={emailValue}
+                        onChange={(e) => {
+                          setEmailValue(e.target.value);
+                          setEmailError(null);
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && sendEmailResults()}
+                        disabled={emailSending}
+                        aria-label="Email address"
+                        autoComplete="email"
+                      />
+                      <button
+                        type="button"
+                        className="copyButton emailSendButton"
+                        onClick={sendEmailResults}
+                        disabled={emailSending}
+                      >
+                        {emailSending ? "Sending…" : "Send"}
+                      </button>
+                      {!emailSending && (
+                        <button
+                          type="button"
+                          className="emailCancelButton"
+                          onClick={() => {
+                            setShowEmailForm(false);
+                            setEmailValue("");
+                            setEmailError(null);
+                          }}
+                          aria-label="Cancel"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {emailSuccess && (
+                        <span className="emailSuccessMessage" aria-live="polite">
+                          Email sent!
+                        </span>
+                      )}
+                      {emailError && (
+                        <span className="emailErrorMessage" role="alert">
+                          {emailError}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
