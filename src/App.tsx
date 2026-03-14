@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 const bloomsLevels = [
   "Remembering",
@@ -855,6 +856,7 @@ export default function App() {
         <span className="dot">·</span>
         <span>Prism Learning Design</span>
       </footer>
+      <Analytics />
     </div>
   );
 }
