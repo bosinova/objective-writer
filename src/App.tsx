@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Analytics } from "@vercel/analytics/react";
-import { useUser, SignInButton, SignOutButton } from "@clerk/clerk-react";
+import { useUser } from "@clerk/clerk-react";
 
 const bloomsLevels = [
   "Remembering",
@@ -299,13 +299,9 @@ export default function App() {
   const [activityErrorByObjectiveId, setActivityErrorByObjectiveId] = useState<Record<string, string>>({});
   const [includeActivitySuggestions, setIncludeActivitySuggestions] = useState(false);
   const [activitiesSectionExpanded, setActivitiesSectionExpanded] = useState(true);
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "dark";
-    const stored = window.localStorage.getItem("objective-writer-theme");
-    return stored === "light" || stored === "dark" ? stored : "dark";
-  });
 
-  const { isSignedIn, user, isLoaded } = useUser();
+  const { isSignedIn, user } = useUser();
+  const isDemoUser = user?.publicMetadata?.role === "demo";
 
   function applyExample(id: ExampleChipId) {
     const preset = examplePresets[id];
@@ -324,7 +320,11 @@ export default function App() {
     );
   }, [rawContent, blooms, audience]);
 
-  const effectiveCount = isSignedIn ? count : 1;
+  const effectiveCount = !isSignedIn
+    ? 1
+    : isDemoUser
+      ? clampInt(count, 1, 10)
+      : clampInt(count, 1, 20);
 
   const canGenerate = useMemo(() => {
     const trimmed = rawContent.trim();
@@ -341,13 +341,6 @@ export default function App() {
     const n = clampInt(count, 1, 20);
     return n >= 4 && trimmed.length < n * 80;
   }, [rawContent, count]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    root.setAttribute("data-theme", theme);
-    window.localStorage.setItem("objective-writer-theme", theme);
-  }, [theme]);
 
   useEffect(() => () => {
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -503,50 +496,7 @@ export default function App() {
   }
 
   return (
-    <div className="appShell">
-      <div className="topBar">
-        <div className="brand">
-          <div className="logoMark" aria-hidden="true" />
-          <div>
-            <div className="brandName">Objective Writer</div>
-            <div className="brandTag">Draft Bloom-aligned learning objectives in seconds</div>
-          </div>
-        </div>
-        <div className="topBarRight">
-          <button
-            type="button"
-            className="modeToggle"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            aria-label="Toggle light and dark mode"
-          >
-            <span className="modeDot" aria-hidden="true" />
-            <span className="modeLabel">{theme === "dark" ? "Dark mode" : "Light mode"}</span>
-          </button>
-          {isLoaded && (
-            isSignedIn ? (
-              <div className="authUserRow">
-                <span className="authUserName">
-                  {user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "Signed in"}
-                </span>
-                <SignOutButton>
-                  <button type="button" className="authSignOutButton">
-                    Sign Out
-                  </button>
-                </SignOutButton>
-              </div>
-            ) : (
-              <SignInButton mode="modal">
-                <button type="button" className="authSignInButton">
-                  Sign In
-                </button>
-              </SignInButton>
-            )
-          )}
-          <span className="chip">Powered by Claude</span>
-        </div>
-      </div>
-
-      <main className="contentGrid">
+    <div className="contentGrid">
         <section className="welcome">
           <p className="welcomeTitle">Welcome to Objective Writer.</p>
           <p className="welcomeBody">
@@ -625,10 +575,18 @@ export default function App() {
                 className="input"
                 type="number"
                 min={1}
-                max={isSignedIn ? 20 : 1}
+                max={!isSignedIn ? 1 : isDemoUser ? 10 : 20}
                 step={1}
                 value={effectiveCount}
-                onChange={(e) => setCount(clampInt(Number(e.target.value || 1), 1, 20))}
+                onChange={(e) =>
+                  setCount(
+                    clampInt(
+                      Number(e.target.value || 1),
+                      1,
+                      isDemoUser ? 10 : 20
+                    )
+                  )
+                }
                 disabled={!isSignedIn}
               />
               {showObjectiveCountWarning && (
@@ -942,13 +900,6 @@ export default function App() {
             </div>
           </section>
         )}
-      </main>
-
-      <footer className="appFooter">
-        <span>Objective Writer</span>
-        <span className="dot">·</span>
-        <span>Prism Learning Design</span>
-      </footer>
       <Analytics />
     </div>
   );
