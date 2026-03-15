@@ -1342,3 +1342,96 @@ body {
   border-color: rgba(148, 163, 184, 0.9);
 }
 
+/* ── Mobile responsive ── */
+@media (max-width: 640px) {
+  .topBar {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .logoMark {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .brandName {
+    font-size: 14px;
+  }
+
+  .brandTag {
+    font-size: 11px;
+    margin-top: 1px;
+  }
+
+  .modeLabel {
+    display: none;
+  }
+
+  .pricingLink {
+    display: none;
+  }
+
+  .contentGrid {
+    width: 100%;
+    padding: 0 12px;
+    margin: 16px auto 24px;
+    gap: 14px;
+  }
+
+  .textarea {
+    min-height: 140px;
+  }
+
+  .hintRow {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .counter {
+    padding: 3px 7px;
+    font-size: 11px;
+  }
+
+  .exampleChipsRow {
+    gap: 6px;
+  }
+
+  .exampleChip {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .copyRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .copyButton {
+    text-align: center;
+  }
+
+  .emailFormRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .emailInput {
+    max-width: 100%;
+  }
+
+  .pricingPage {
+    width: 100%;
+    padding: 0 14px;
+    margin: 16px auto 32px;
+  }
+
+  .pricingTitle {
+    font-size: 18px;
+  }
+
+  .pricingSubtitle {
+    font-size: 13px;
+  }
+}

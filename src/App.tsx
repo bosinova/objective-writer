@@ -570,25 +570,25 @@ export default function App() {
               <label className="label" htmlFor={countId}>
                 Number of objectives
               </label>
-              <input
-                id={countId}
-                className="input"
-                type="number"
-                min={1}
-                max={!isSignedIn ? 1 : isDemoUser ? 10 : 20}
-                step={1}
-                value={effectiveCount}
-                onChange={(e) =>
-                  setCount(
-                    clampInt(
-                      Number(e.target.value || 1),
-                      1,
-                      isDemoUser ? 10 : 20
-                    )
-                  )
-                }
-                disabled={!isSignedIn}
-              />
+              <select
+              id={countId}
+              className="select"
+              value={effectiveCount}
+              onChange={(e) =>
+                setCount(clampInt(Number(e.target.value), 1, isDemoUser ? 10 : 20))
+              }
+              disabled={!isSignedIn}
+            >
+              {Array.from(
+                { length: !isSignedIn ? 1 : isDemoUser ? 10 : 20 },
+                (_, i) => i + 1
+              ).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          
               {showObjectiveCountWarning && (
                 <p className="fieldWarning">
                   Your content may be too brief to support this many objectives. Consider adding
