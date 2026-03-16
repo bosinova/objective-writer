@@ -34,6 +34,13 @@ export default function Layout() {
           <Link to="/pricing" className="pricingLink">
             Pricing
           </Link>
+          <a href="https://outline-generator-rho.vercel.app"
+  className="pricingLink"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Outline Generator
+</a>
           <button
             type="button"
             className="modeToggle"
