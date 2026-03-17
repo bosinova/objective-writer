@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Analytics } from "@vercel/analytics/react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
+import { supabase } from './supabase';
 
 const bloomsLevels = [
   "Remembering",
@@ -101,7 +102,6 @@ function sampleObjectives(params: {
     });
   }
 
-  // If user asks for more than our stems, pad with a consistent pattern.
   while (objectives.length < n) {
     const idx = objectives.length + 1;
     objectives.push({
@@ -140,19 +140,12 @@ async function generateObjectivesViaClaude(params: {
 
   const response = await fetch(`${apiBase}/api/generate`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-5",
       max_tokens: 800,
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
+      messages: [{ role: "user", content: userPrompt }],
     }),
   });
 
@@ -162,10 +155,7 @@ async function generateObjectivesViaClaude(params: {
     throw new Error(`API error: ${response.status}. Is the proxy running? Check the console.`);
   }
 
-  const data: {
-    content?: { type: string; text?: string }[];
-  } = await response.json();
-
+  const data: { content?: { type: string; text?: string }[] } = await response.json();
   console.log("[Objective Writer] Claude raw response data:", data);
 
   const text = (data.content && data.content[0] && data.content[0].text) || "";
@@ -180,10 +170,7 @@ async function generateObjectivesViaClaude(params: {
 
   return lines.map((line, index) => {
     const cleaned = line.replace(/^\d+[\).\s-]*/, "").trim();
-    return {
-      id: `api-${index}`,
-      text: cleaned || line,
-    };
+    return { id: `api-${index}`, text: cleaned || line };
   });
 }
 
@@ -208,19 +195,12 @@ async function fetchActivitiesForObjective(params: {
 
   const response = await fetch(`${apiBase}/api/generate`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-5",
       max_tokens: 600,
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
+      messages: [{ role: "user", content: userPrompt }],
     }),
   });
 
@@ -230,10 +210,7 @@ async function fetchActivitiesForObjective(params: {
     throw new Error(`API error: ${response.status}. Is the proxy running?`);
   }
 
-  const data: {
-    content?: { type: string; text?: string }[];
-  } = await response.json();
-
+  const data: { content?: { type: string; text?: string }[] } = await response.json();
   const text = (data.content && data.content[0] && data.content[0].text) || "";
   const trimmed = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   let parsed: unknown;
@@ -244,18 +221,13 @@ async function fetchActivitiesForObjective(params: {
     throw new Error("Could not parse activity suggestions.");
   }
 
-  if (!Array.isArray(parsed)) {
-    throw new Error("Activity suggestions were not in the expected format.");
-  }
+  if (!Array.isArray(parsed)) throw new Error("Activity suggestions were not in the expected format.");
 
   const activities: Activity[] = [];
   for (const item of parsed) {
     if (
-      item &&
-      typeof item === "object" &&
-      "activityType" in item &&
-      "description" in item &&
-      "whyItFits" in item &&
+      item && typeof item === "object" &&
+      "activityType" in item && "description" in item && "whyItFits" in item &&
       typeof (item as Activity).activityType === "string" &&
       typeof (item as Activity).description === "string" &&
       typeof (item as Activity).whyItFits === "string"
@@ -299,8 +271,10 @@ export default function App() {
   const [activityErrorByObjectiveId, setActivityErrorByObjectiveId] = useState<Record<string, string>>({});
   const [includeActivitySuggestions, setIncludeActivitySuggestions] = useState(false);
   const [activitiesSectionExpanded, setActivitiesSectionExpanded] = useState(true);
+  const [saved, setSaved] = useState(false);
 
   const { isSignedIn, user } = useUser();
+  const { userId } = useAuth();
   const isDemoUser = user?.publicMetadata?.role === "demo";
 
   function applyExample(id: ExampleChipId) {
@@ -354,10 +328,7 @@ export default function App() {
     navigator.clipboard.writeText(text).then(() => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       setCopied(true);
-      copyTimeoutRef.current = setTimeout(() => {
-        setCopied(false);
-        copyTimeoutRef.current = null;
-      }, 2000);
+      copyTimeoutRef.current = setTimeout(() => { setCopied(false); copyTimeoutRef.current = null; }, 2000);
     });
   }
 
@@ -384,10 +355,7 @@ export default function App() {
     navigator.clipboard.writeText(text).then(() => {
       if (activitiesCopyTimeoutRef.current) clearTimeout(activitiesCopyTimeoutRef.current);
       setActivitiesCopied(true);
-      activitiesCopyTimeoutRef.current = setTimeout(() => {
-        setActivitiesCopied(false);
-        activitiesCopyTimeoutRef.current = null;
-      }, 2000);
+      activitiesCopyTimeoutRef.current = setTimeout(() => { setActivitiesCopied(false); activitiesCopyTimeoutRef.current = null; }, 2000);
     });
   }
 
@@ -451,6 +419,7 @@ export default function App() {
     setActivitiesByObjectiveId({});
     setLoadingActivityObjectiveIds([]);
     setActivityErrorByObjectiveId({});
+    setSaved(false);
     const trimmedContent = rawContent.trim();
     const safeCount = clampInt(effectiveCount, 1, 20);
     const wantActivities = includeActivitySuggestions;
@@ -463,6 +432,19 @@ export default function App() {
       });
       setObjectives(results);
       setHasGenerated(true);
+
+      // Save to Supabase if signed in
+      if (userId) {
+        const { error: saveError } = await supabase.from("saved_objectives").insert({
+          user_id: userId,
+          blooms_level: blooms,
+          audience,
+          content_summary: trimmedContent.slice(0, 200),
+          objectives: results.map((o) => o.text),
+        });
+        if (!saveError) setSaved(true);
+      }
+
       if (wantActivities && results.length > 0) {
         setActivitiesSectionExpanded(true);
         const ids = results.map((o) => o.id);
@@ -497,411 +479,312 @@ export default function App() {
 
   return (
     <div className="contentGrid">
-        <section className="welcome">
-          <p className="welcomeTitle">Welcome to Objective Writer.</p>
-          <p className="welcomeBody">
-            Paste in your course content, choose your settings, and generate polished,
-            Bloom&apos;s-aligned learning objectives in seconds.
-          </p>
-        </section>
+      <section className="welcome">
+        <p className="welcomeTitle">Welcome to Objective Writer.</p>
+        <p className="welcomeBody">
+          Paste in your course content, choose your settings, and generate polished,
+          Bloom&apos;s-aligned learning objectives in seconds.
+        </p>
+      </section>
 
-        <section className="panel panelForm" aria-label="Inputs">
-          <div className="field">
-            <label className="label" htmlFor={rawId}>
-              Course Content or Topic Overview
-            </label>
-            <textarea
-              id={rawId}
-              className="textarea"
-              placeholder="Include topics, skills, constraints, assessment expectations, and any specific measurements or performance goals you want learners to hit."
-              value={rawContent}
-              onChange={(e) => {
-                setRawContent(e.target.value);
-                setActiveExampleChip(null);
-              }}
-              rows={10}
-            />
-            <div className="exampleChipsRow">
-              <span className="exampleChipsLabel">Try an example:</span>
-              <div className="exampleChips">
-                {(Object.keys(examplePresets) as ExampleChipId[]).map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`exampleChip ${activeExampleChip === id ? "exampleChipActive" : ""}`}
-                    onClick={() => applyExample(id)}
-                  >
-                    {id === "food-safety" ? "Food Safety" : id === "customer-service" ? "Customer Service" : "Data Literacy"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="hintRow">
-              <span className="hint">
-                Tip: Richer, more detailed input will support stronger, more specific objectives.
-              </span>
-              <span className="counter">{rawContent.trim().length} chars</span>
+      <section className="panel panelForm" aria-label="Inputs">
+        <div className="field">
+          <label className="label" htmlFor={rawId}>
+            Course Content or Topic Overview
+          </label>
+          <textarea
+            id={rawId}
+            className="textarea"
+            placeholder="Include topics, skills, constraints, assessment expectations, and any specific measurements or performance goals you want learners to hit."
+            value={rawContent}
+            onChange={(e) => { setRawContent(e.target.value); setActiveExampleChip(null); }}
+            rows={10}
+          />
+          <div className="exampleChipsRow">
+            <span className="exampleChipsLabel">Try an example:</span>
+            <div className="exampleChips">
+              {(Object.keys(examplePresets) as ExampleChipId[]).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`exampleChip ${activeExampleChip === id ? "exampleChipActive" : ""}`}
+                  onClick={() => applyExample(id)}
+                >
+                  {id === "food-safety" ? "Food Safety" : id === "customer-service" ? "Customer Service" : "Data Literacy"}
+                </button>
+              ))}
             </div>
           </div>
+          <div className="hintRow">
+            <span className="hint">
+              Tip: Richer, more detailed input will support stronger, more specific objectives.
+            </span>
+            <span className="counter">{rawContent.trim().length} chars</span>
+          </div>
+        </div>
 
-          <div className="twoCol">
-            <div className="field">
-              <label className="label" htmlFor={bloomsId}>
-                Select the performance level
-              </label>
-              <select
-                id={bloomsId}
-                className="select"
-                value={blooms}
-                onChange={(e) => {
-                  setBlooms(e.target.value as BloomsLevel);
-                  setActiveExampleChip(null);
-                }}
-              >
-                {bloomsLevels.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {lvl}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="twoCol">
+          <div className="field">
+            <label className="label" htmlFor={bloomsId}>Select the performance level</label>
+            <select
+              id={bloomsId}
+              className="select"
+              value={blooms}
+              onChange={(e) => { setBlooms(e.target.value as BloomsLevel); setActiveExampleChip(null); }}
+            >
+              {bloomsLevels.map((lvl) => (
+                <option key={lvl} value={lvl}>{lvl}</option>
+              ))}
+            </select>
+          </div>
 
-            <div className="field">
-              <label className="label" htmlFor={countId}>
-                Number of objectives
-              </label>
-              <select
+          <div className="field">
+            <label className="label" htmlFor={countId}>Number of objectives</label>
+            <select
               id={countId}
               className="select"
               value={effectiveCount}
-              onChange={(e) =>
-                setCount(clampInt(Number(e.target.value), 1, isDemoUser ? 10 : 20))
-              }
+              onChange={(e) => setCount(clampInt(Number(e.target.value), 1, isDemoUser ? 10 : 20))}
               disabled={!isSignedIn}
             >
               {Array.from(
                 { length: !isSignedIn ? 1 : isDemoUser ? 10 : 20 },
                 (_, i) => i + 1
               ).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
+                <option key={n} value={n}>{n}</option>
               ))}
             </select>
-          
-              {showObjectiveCountWarning && (
-                <p className="fieldWarning">
-                  Your content may be too brief to support this many objectives. Consider adding
-                  more detail.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="field">
-            <label className="label" htmlFor={audienceId}>
-              Audience description
-            </label>
-            <input
-              id={audienceId}
-              className="input"
-              placeholder="e.g., first-year nursing students, new sales hires, experienced engineers…"
-              value={audience}
-              onChange={(e) => {
-                setAudience(e.target.value);
-                setActiveExampleChip(null);
-              }}
-            />
-          </div>
-
-          <div className="field fieldCheckbox">
-            <label className="checkboxLabel" htmlFor={includeActivitiesId}>
-              <input
-                id={includeActivitiesId}
-                type="checkbox"
-                className="checkbox"
-                checked={includeActivitySuggestions}
-                onChange={(e) => setIncludeActivitySuggestions(e.target.checked)}
-                aria-describedby={includeActivitiesId ? `${includeActivitiesId}-desc` : undefined}
-              />
-              <span className="checkboxText">Include activity suggestions with my objectives</span>
-            </label>
-            <span id={`${includeActivitiesId}-desc`} className="checkboxDescription">
-              When checked, suggested activities are generated for each objective after objectives load.
-            </span>
-          </div>
-
-          {showSignInPrompt && (
-            <p className="signInPrompt">
-              Sign in to use your own content and generate up to 3 objectives for free.
-            </p>
-          )}
-          <div className="actionsRow">
-            <div className="generateBlock">
-              <button className="button" disabled={!canGenerate} onClick={onGenerate}>
-                {status === "generating" ? "Generating…" : "Generate"}
-              </button>
-              <p className="dataDisclaimer" aria-live="polite">
-                Your content is processed by Claude AI. Do not paste confidential or proprietary information.
+            {showObjectiveCountWarning && (
+              <p className="fieldWarning">
+                Your content may be too brief to support this many objectives. Consider adding more detail.
               </p>
-            </div>
-            {generateError && (
-              <span className="callout calloutError">{generateError}</span>
             )}
           </div>
-        </section>
+        </div>
 
-        {hasGenerated && (
-          <section className="panel panelOutput" aria-label="Generated objectives">
-            <div className="panelHeader">
-              <div>
-                <div className="panelTitle">Generated objectives</div>
-                <div className="panelSubtitle">
-                  Review and refine before exporting to your LMS or lesson plan.
+        <div className="field">
+          <label className="label" htmlFor={audienceId}>Audience description</label>
+          <input
+            id={audienceId}
+            className="input"
+            placeholder="e.g., first-year nursing students, new sales hires, experienced engineers…"
+            value={audience}
+            onChange={(e) => { setAudience(e.target.value); setActiveExampleChip(null); }}
+          />
+        </div>
+
+        <div className="field fieldCheckbox">
+          <label className="checkboxLabel" htmlFor={includeActivitiesId}>
+            <input
+              id={includeActivitiesId}
+              type="checkbox"
+              className="checkbox"
+              checked={includeActivitySuggestions}
+              onChange={(e) => setIncludeActivitySuggestions(e.target.checked)}
+              aria-describedby={includeActivitiesId ? `${includeActivitiesId}-desc` : undefined}
+            />
+            <span className="checkboxText">Include activity suggestions with my objectives</span>
+          </label>
+          <span id={`${includeActivitiesId}-desc`} className="checkboxDescription">
+            When checked, suggested activities are generated for each objective after objectives load.
+          </span>
+        </div>
+
+        {showSignInPrompt && (
+          <p className="signInPrompt">
+            Sign in to use your own content and generate up to 3 objectives for free.
+          </p>
+        )}
+        <div className="actionsRow">
+          <div className="generateBlock">
+            <button className="button" disabled={!canGenerate} onClick={onGenerate}>
+              {status === "generating" ? "Generating…" : "Generate"}
+            </button>
+            <p className="dataDisclaimer" aria-live="polite">
+              Your content is processed by Claude AI. Do not paste confidential or proprietary information.
+            </p>
+          </div>
+          {generateError && <span className="callout calloutError">{generateError}</span>}
+        </div>
+      </section>
+
+      {hasGenerated && (
+        <section className="panel panelOutput" aria-label="Generated objectives">
+          <div className="panelHeader">
+            <div>
+              <div className="panelTitle">Generated objectives</div>
+              <div className="panelSubtitle">
+                Review and refine before exporting to your LMS or lesson plan.
+              </div>
+              {saved && (
+                <div style={{ fontSize: "0.75rem", color: "#7ab87a", marginTop: "4px" }}>
+                  ✓ Saved to My Library
                 </div>
-              </div>
-              <div className="meta">
-                <span className="chip chipStrong">{blooms}</span>
-                <span className="chip">{clampInt(effectiveCount, 1, 20)} requested</span>
-              </div>
+              )}
             </div>
+            <div className="meta">
+              <span className="chip chipStrong">{blooms}</span>
+              <span className="chip">{clampInt(effectiveCount, 1, 20)} requested</span>
+            </div>
+          </div>
 
-            <ol className="objectiveList">
-              {objectives.slice(0, clampInt(effectiveCount, 1, 20)).map((obj) => (
-                <li key={obj.id} className="objectiveCard">
-                  <div className="objectiveText">{obj.text}</div>
-                </li>
-              ))}
-            </ol>
+          <ol className="objectiveList">
+            {objectives.slice(0, clampInt(effectiveCount, 1, 20)).map((obj) => (
+              <li key={obj.id} className="objectiveCard">
+                <div className="objectiveText">{obj.text}</div>
+              </li>
+            ))}
+          </ol>
 
-            <div className="copyRow">
+          <div className="copyRow">
+            <button type="button" className="copyButton" onClick={copyObjectivesToClipboard} disabled={copied}>
+              {copied ? <><span className="copyIcon" aria-hidden="true">✓</span>Copied!</> : "Copy all"}
+            </button>
+            {!showEmailForm || emailFormLocation !== "objectives" ? (
               <button
                 type="button"
                 className="copyButton"
-                onClick={copyObjectivesToClipboard}
-                disabled={copied}
+                onClick={() => { setShowEmailForm(true); setEmailFormLocation("objectives"); setEmailError(null); }}
               >
-                {copied ? (
-                  <>
-                    <span className="copyIcon" aria-hidden="true">✓</span>
-                    Copied!
-                  </>
-                ) : (
-                  "Copy all"
-                )}
+                Email me these results
               </button>
-              {!showEmailForm || emailFormLocation !== "objectives" ? (
-                <button
-                  type="button"
-                  className="copyButton"
-                  onClick={() => {
-                    setShowEmailForm(true);
-                    setEmailFormLocation("objectives");
-                    setEmailError(null);
-                  }}
-                >
-                  Email me these results
+            ) : (
+              <div className="emailFormRow">
+                <input
+                  type="email"
+                  className="emailInput"
+                  placeholder="Your email"
+                  value={emailValue}
+                  onChange={(e) => { setEmailValue(e.target.value); setEmailError(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && sendEmailResults()}
+                  disabled={emailSending}
+                  aria-label="Email address"
+                  autoComplete="email"
+                />
+                <button type="button" className="copyButton emailSendButton" onClick={sendEmailResults} disabled={emailSending}>
+                  {emailSending ? "Sending…" : "Send"}
                 </button>
-              ) : (
-                <div className="emailFormRow">
-                  <input
-                    type="email"
-                    className="emailInput"
-                    placeholder="Your email"
-                    value={emailValue}
-                    onChange={(e) => {
-                      setEmailValue(e.target.value);
-                      setEmailError(null);
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && sendEmailResults()}
-                    disabled={emailSending}
-                    aria-label="Email address"
-                    autoComplete="email"
-                  />
+                {!emailSending && (
                   <button
                     type="button"
-                    className="copyButton emailSendButton"
-                    onClick={sendEmailResults}
-                    disabled={emailSending}
+                    className="emailCancelButton"
+                    onClick={() => { setShowEmailForm(false); setEmailValue(""); setEmailError(null); }}
+                    aria-label="Cancel"
                   >
-                    {emailSending ? "Sending…" : "Send"}
+                    Cancel
                   </button>
-                  {!emailSending && (
-                    <button
-                      type="button"
-                      className="emailCancelButton"
-                      onClick={() => {
-                        setShowEmailForm(false);
-                        setEmailValue("");
-                        setEmailError(null);
-                      }}
-                      aria-label="Cancel"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  {emailSuccess && (
-                    <span className="emailSuccessMessage" aria-live="polite">
-                      Email sent!
-                    </span>
-                  )}
-                  {emailError && (
-                    <span className="emailErrorMessage" role="alert">
-                      {emailError}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+                )}
+                {emailSuccess && <span className="emailSuccessMessage" aria-live="polite">Email sent!</span>}
+                {emailError && <span className="emailErrorMessage" role="alert">{emailError}</span>}
+              </div>
+            )}
+          </div>
 
-            <div className="footerNote">Refine wording as needed before publishing.</div>
-          </section>
-        )}
+          <div className="footerNote">Refine wording as needed before publishing.</div>
+        </section>
+      )}
 
-        {hasGenerated &&
-          (loadingActivityObjectiveIds.length > 0 ||
-            Object.keys(activitiesByObjectiveId).some((id) => (activitiesByObjectiveId[id]?.length ?? 0) > 0) ||
-            Object.keys(activityErrorByObjectiveId).length > 0) && (
-          <section
-            className="panel activitiesPanel"
-            aria-label="Suggested activities"
+      {hasGenerated &&
+        (loadingActivityObjectiveIds.length > 0 ||
+          Object.keys(activitiesByObjectiveId).some((id) => (activitiesByObjectiveId[id]?.length ?? 0) > 0) ||
+          Object.keys(activityErrorByObjectiveId).length > 0) && (
+        <section
+          className="panel activitiesPanel"
+          aria-label="Suggested activities"
+          aria-expanded={activitiesSectionExpanded}
+        >
+          <button
+            type="button"
+            className="activitiesPanelToggle"
+            onClick={() => setActivitiesSectionExpanded((e) => !e)}
             aria-expanded={activitiesSectionExpanded}
+            aria-controls="activities-panel-content"
+            id="activities-panel-toggle"
           >
-            <button
-              type="button"
-              className="activitiesPanelToggle"
-              onClick={() => setActivitiesSectionExpanded((e) => !e)}
-              aria-expanded={activitiesSectionExpanded}
-              aria-controls="activities-panel-content"
-              id="activities-panel-toggle"
-            >
-              <span className="activitiesPanelToggleTitle">Suggested Activities</span>
-              <span className="activitiesPanelToggleIcon" aria-hidden="true">
-                {activitiesSectionExpanded ? "▼" : "▶"}
-              </span>
-            </button>
-            <div
-              id="activities-panel-content"
-              className="activitiesPanelContent"
-              hidden={!activitiesSectionExpanded}
-              role="region"
-              aria-labelledby="activities-panel-toggle"
-            >
-              {objectives.slice(0, clampInt(effectiveCount, 1, 20)).map((obj, index) => (
-                <div key={obj.id} className="activitiesObjectiveBlock">
-                  <h3 className="activitiesObjectiveHeading">
-                    Objective {index + 1}
-                  </h3>
-                  <p className="activitiesObjectiveText">{obj.text}</p>
-                  {loadingActivityObjectiveIds.includes(obj.id) && !activitiesByObjectiveId[obj.id]?.length && (
-                    <div className="activityLoading" aria-live="polite">
-                      Suggesting activities…
-                    </div>
-                  )}
-                  {activityErrorByObjectiveId[obj.id] && (
-                    <p className="activityError">{activityErrorByObjectiveId[obj.id]}</p>
-                  )}
-                  {activitiesByObjectiveId[obj.id]?.length > 0 && (
-                    <ul className="activityList" aria-label={`Activities for objective ${index + 1}`}>
-                      {activitiesByObjectiveId[obj.id].map((activity, idx) => (
-                        <li key={idx} className="activityItem">
-                          <span className="activityType">{activity.activityType}</span>
-                          <p className="activityDescription">{activity.description}</p>
-                          <p className="activityWhy">{activity.whyItFits}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-              {Object.keys(activitiesByObjectiveId).some(
-                (id) => (activitiesByObjectiveId[id]?.length ?? 0) > 0
-              ) && (
-                <div className="activitiesCopyRow">
+            <span className="activitiesPanelToggleTitle">Suggested Activities</span>
+            <span className="activitiesPanelToggleIcon" aria-hidden="true">
+              {activitiesSectionExpanded ? "▼" : "▶"}
+            </span>
+          </button>
+          <div
+            id="activities-panel-content"
+            className="activitiesPanelContent"
+            hidden={!activitiesSectionExpanded}
+            role="region"
+            aria-labelledby="activities-panel-toggle"
+          >
+            {objectives.slice(0, clampInt(effectiveCount, 1, 20)).map((obj, index) => (
+              <div key={obj.id} className="activitiesObjectiveBlock">
+                <h3 className="activitiesObjectiveHeading">Objective {index + 1}</h3>
+                <p className="activitiesObjectiveText">{obj.text}</p>
+                {loadingActivityObjectiveIds.includes(obj.id) && !activitiesByObjectiveId[obj.id]?.length && (
+                  <div className="activityLoading" aria-live="polite">Suggesting activities…</div>
+                )}
+                {activityErrorByObjectiveId[obj.id] && (
+                  <p className="activityError">{activityErrorByObjectiveId[obj.id]}</p>
+                )}
+                {activitiesByObjectiveId[obj.id]?.length > 0 && (
+                  <ul className="activityList" aria-label={`Activities for objective ${index + 1}`}>
+                    {activitiesByObjectiveId[obj.id].map((activity, idx) => (
+                      <li key={idx} className="activityItem">
+                        <span className="activityType">{activity.activityType}</span>
+                        <p className="activityDescription">{activity.description}</p>
+                        <p className="activityWhy">{activity.whyItFits}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+            {Object.keys(activitiesByObjectiveId).some((id) => (activitiesByObjectiveId[id]?.length ?? 0) > 0) && (
+              <div className="activitiesCopyRow">
+                <button type="button" className="copyButton" onClick={copyActivitiesToClipboard} disabled={activitiesCopied}>
+                  {activitiesCopied ? <><span className="copyIcon" aria-hidden="true">✓</span>Copied!</> : "Copy all"}
+                </button>
+                {!showEmailForm || emailFormLocation !== "activities" ? (
                   <button
                     type="button"
                     className="copyButton"
-                    onClick={copyActivitiesToClipboard}
-                    disabled={activitiesCopied}
+                    onClick={() => { setShowEmailForm(true); setEmailFormLocation("activities"); setEmailError(null); }}
                   >
-                    {activitiesCopied ? (
-                      <>
-                        <span className="copyIcon" aria-hidden="true">✓</span>
-                        Copied!
-                      </>
-                    ) : (
-                      "Copy all"
-                    )}
+                    Email me these results
                   </button>
-                  {!showEmailForm || emailFormLocation !== "activities" ? (
-                    <button
-                      type="button"
-                      className="copyButton"
-                      onClick={() => {
-                        setShowEmailForm(true);
-                        setEmailFormLocation("activities");
-                        setEmailError(null);
-                      }}
-                    >
-                      Email me these results
+                ) : (
+                  <div className="emailFormRow">
+                    <input
+                      type="email"
+                      className="emailInput"
+                      placeholder="Your email"
+                      value={emailValue}
+                      onChange={(e) => { setEmailValue(e.target.value); setEmailError(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && sendEmailResults()}
+                      disabled={emailSending}
+                      aria-label="Email address"
+                      autoComplete="email"
+                    />
+                    <button type="button" className="copyButton emailSendButton" onClick={sendEmailResults} disabled={emailSending}>
+                      {emailSending ? "Sending…" : "Send"}
                     </button>
-                  ) : (
-                    <div className="emailFormRow">
-                      <input
-                        type="email"
-                        className="emailInput"
-                        placeholder="Your email"
-                        value={emailValue}
-                        onChange={(e) => {
-                          setEmailValue(e.target.value);
-                          setEmailError(null);
-                        }}
-                        onKeyDown={(e) => e.key === "Enter" && sendEmailResults()}
-                        disabled={emailSending}
-                        aria-label="Email address"
-                        autoComplete="email"
-                      />
+                    {!emailSending && (
                       <button
                         type="button"
-                        className="copyButton emailSendButton"
-                        onClick={sendEmailResults}
-                        disabled={emailSending}
+                        className="emailCancelButton"
+                        onClick={() => { setShowEmailForm(false); setEmailValue(""); setEmailError(null); }}
+                        aria-label="Cancel"
                       >
-                        {emailSending ? "Sending…" : "Send"}
+                        Cancel
                       </button>
-                      {!emailSending && (
-                        <button
-                          type="button"
-                          className="emailCancelButton"
-                          onClick={() => {
-                            setShowEmailForm(false);
-                            setEmailValue("");
-                            setEmailError(null);
-                          }}
-                          aria-label="Cancel"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      {emailSuccess && (
-                        <span className="emailSuccessMessage" aria-live="polite">
-                          Email sent!
-                        </span>
-                      )}
-                      {emailError && (
-                        <span className="emailErrorMessage" role="alert">
-                          {emailError}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+                    )}
+                    {emailSuccess && <span className="emailSuccessMessage" aria-live="polite">Email sent!</span>}
+                    {emailError && <span className="emailErrorMessage" role="alert">{emailError}</span>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
       <Analytics />
     </div>
   );
 }
-
