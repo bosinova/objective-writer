@@ -1185,8 +1185,13 @@ body {
   align-items: start;
 }
 
+.pricingGridThreeCol {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 @media (max-width: 1000px) {
-  .pricingGrid {
+  .pricingGrid,
+  .pricingGridThreeCol {
     grid-template-columns: repeat(2, 1fr);
   }
 }

@@ -9,57 +9,44 @@ const tiers = [
     cta: "Get started",
     badge: null,
     features: [
-      "Free account required",
-      "Own content unlocked",
-      "3 objectives per generation",
-      "5 generations per month",
-      "Activities included",
-      "Email results",
-    ],
-  },
-  {
-    id: "starter",
-    name: "Starter",
-    price: "$4.99",
-    period: "/mo",
-    cta: "Subscribe",
-    badge: null,
-    features: [
-      "Own content",
-      "3 objectives per generation",
-      "20 generations per month",
-      "Activities included",
+      "Access to both Prism tools",
+      "1 objective per generation",
+      "3 outline generations/month",
+      "5 objective generations/month",
+      "Activity suggestions",
       "Email results",
     ],
   },
   {
     id: "pro",
     name: "Pro",
-    price: "$9.99",
+    price: "$15.99",
     period: "/mo",
     cta: "Subscribe",
-    badge: "Most popular",
+    badge: "Best value",
     features: [
-      "Own content",
+      "Access to all Prism tools",
       "10 objectives per generation",
-      "100 generations per month",
-      "Activities included",
+      "Unlimited generations",
+      "Activity suggestions",
       "Email results",
+      "Save to Projects dashboard",
+      "Priority support",
     ],
   },
   {
     id: "team",
     name: "Team",
-    price: "$49.99",
+    price: "$69.99",
     period: "/mo",
     cta: "Contact us",
-    badge: "Multiple seats coming soon",
+    badge: "Multiple seats",
     features: [
-      "Own content",
-      "10 objectives per generation",
-      "500 generations per month",
-      "Activities included",
-      "Email results",
+      "Everything in Pro",
+      "Multiple seats (up to 10)",
+      "Team project sharing",
+      "Usage analytics",
+      "Dedicated support",
     ],
   },
 ];
@@ -79,12 +66,12 @@ export default function Pricing() {
           ← Back to app
         </Link>
       </div>
-      <h1 className="pricingTitle">Pricing</h1>
+      <h1 className="pricingTitle">Simple pricing for the whole Prism suite.</h1>
       <p className="pricingSubtitle" id="pricing-desc">
         Choose the plan that fits your needs. All plans include activity suggestions and email delivery.
       </p>
       <ul
-        className="pricingGrid"
+        className="pricingGrid pricingGridThreeCol"
         role="list"
         aria-label="Available pricing plans"
         aria-describedby="pricing-desc"
@@ -103,7 +90,7 @@ export default function Pricing() {
               {tier.badge && (
                 <span
                   className={`pricingBadge ${tier.id === "pro" ? "pricingBadgePopular" : "pricingBadgeMuted"}`}
-                  aria-label={tier.id === "pro" ? "Most popular plan" : "Note: Multiple seats coming soon"}
+                  aria-label={tier.id === "pro" ? "Best value plan" : tier.id === "team" ? "Multiple seats plan" : ""}
                 >
                   {tier.badge}
                 </span>
