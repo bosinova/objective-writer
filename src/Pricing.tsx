@@ -9,8 +9,6 @@ function CheckIcon() {
   );
 }
 
-const OUTLINE_GENERATOR_URL = "https://outline-generator-rho.vercel.app";
-
 /** Shared shape for Suite and Individual tool pricing cards (SuiteCard). */
 type PricingCardTier = {
   id: string;
@@ -24,51 +22,48 @@ type PricingCardTier = {
   ctaHref?: string;
 };
 
-const individualTiers: {
-  objectiveWriter: PricingCardTier[];
-  outlineGenerator: PricingCardTier[];
-} = {
-  objectiveWriter: [
-    {
-      id: "free",
-      name: "Free",
-      price: "$0",
-      cta: "Get started",
-      badge: null,
-      ctaHref: "/",
-      features: ["1 objective per generation", "5 generations/month"],
-    },
-    {
-      id: "pro",
-      name: "Pro",
-      price: "$9.99",
-      period: "/mo",
-      cta: "Subscribe",
-      badge: "Best value",
-      features: ["10 objectives per generation", "Unlimited generations"],
-    },
-  ],
-  outlineGenerator: [
-    {
-      id: "free",
-      name: "Free",
-      price: "$0",
-      cta: "Get started",
-      badge: null,
-      ctaHref: OUTLINE_GENERATOR_URL,
-      features: ["1 outline per generation", "5 generations/month"],
-    },
-    {
-      id: "pro",
-      name: "Pro",
-      price: "$9.99",
-      period: "/mo",
-      cta: "Subscribe",
-      badge: "Best value",
-      features: ["10 outlines per generation", "Unlimited generations"],
-    },
-  ],
-};
+/** Objective Writer only — Individual tools tab (same grid as Suite). */
+const objectiveWriterIndividualTiers: PricingCardTier[] = [
+  {
+    id: "free",
+    name: "Free",
+    price: "$0",
+    cta: "Get started",
+    badge: null,
+    ctaHref: "/",
+    features: [
+      "1 objective per generation",
+      "5 generations/month",
+      "Activity suggestions",
+      "Email results",
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$9.99",
+    period: "/mo",
+    cta: "Subscribe",
+    badge: "Best value",
+    features: [
+      "10 objectives per generation",
+      "Unlimited generations",
+      "Activity suggestions",
+      "Email results",
+      "Save to Projects dashboard",
+      "Priority support",
+    ],
+  },
+  {
+    id: "team",
+    name: "Team",
+    price: "$19.99",
+    period: "/mo",
+    cta: "Contact us",
+    badge: "Multiple seats · Coming soon",
+    features: ["Everything in Pro", "Multiple seats up to 10", "Priority support"],
+  },
+];
 
 const suiteTiers: PricingCardTier[] = [
   {
@@ -224,62 +219,6 @@ function SuiteCard({ tier, listKey }: { tier: PricingCardTier; listKey: string }
   );
 }
 
-function IndividualTeamTier() {
-  const headingId = "pricing-ind-team-heading";
-  const featuresId = "pricing-ind-team-features";
-  return (
-    <section
-      className="pricingIndividualTeam"
-      aria-labelledby={headingId}
-      aria-describedby={featuresId}
-    >
-      <div className="pricingIndividualTeamCard">
-        <span
-          className="pricingBadge pricingBadgeMuted"
-          aria-label="Multiple seats plan, coming soon"
-        >
-          Multiple seats · Coming soon
-        </span>
-        <div className="pricingIndividualTeamLayout">
-          <div className="pricingIndividualTeamMain">
-            <h2 id={headingId} className="pricingCardName">
-              Team
-            </h2>
-            <div className="pricingCardPrice pricingIndividualTeamPriceBlock">
-              <div className="pricingIndividualTeamPriceLine">
-                <span className="pricingPriceAmount">$19.99</span>
-                <span className="pricingPricePeriod">/month per tool</span>
-              </div>
-              <p className="pricingIndividualTeamBundle">
-                or <strong>$34.99</strong>/month for both tools bundled
-              </p>
-            </div>
-            <ul id={featuresId} className="pricingCardFeatures" aria-label="Team plan features">
-              <li>
-                <CheckIcon />
-                <span>Everything in Pro for one tool</span>
-              </li>
-            </ul>
-            <p className="pricingIndividualTeamSuiteNote">
-              Save more with the Suite plan at <strong>$69.99/month</strong> for both tools and up
-              to 10 seats.
-            </p>
-          </div>
-          <div className="pricingIndividualTeamCtaWrap">
-            <button
-              type="button"
-              className="pricingCta pricingCtaSecondary"
-              aria-label={getCtaAriaLabel("Contact us", "Team")}
-            >
-              Contact us
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function Pricing() {
   /** Default tab: Suite (Save 20%) */
   const [pricingMode, setPricingMode] = useState<"suite" | "individual">("suite");
@@ -328,29 +267,18 @@ export default function Pricing() {
         </ul>
       ) : (
         <>
-          <div className="pricingIndividualGrid">
-            <div className="pricingToolColumn">
-              <h2 className="pricingToolHeading">Objective Writer</h2>
-              <ul className="pricingToolList" aria-label="Objective Writer pricing plans">
-                {individualTiers.objectiveWriter.map((tier) => (
-                  <SuiteCard key={tier.id} tier={tier} listKey="objective-writer" />
-                ))}
-              </ul>
-            </div>
-            <div className="pricingToolColumn">
-              <h2 className="pricingToolHeading">Outline Generator</h2>
-              <ul className="pricingToolList" aria-label="Outline Generator pricing plans">
-                {individualTiers.outlineGenerator.map((tier) => (
-                  <SuiteCard key={tier.id} tier={tier} listKey="outline-generator" />
-                ))}
-              </ul>
-            </div>
-          </div>
-          <IndividualTeamTier />
-          <p className="pricingIndividualNote">
-            Prefer both tools with shared seats? Switch to the <strong>Suite</strong> tab for the full
-            bundle and team pricing.
-          </p>
+          <h2 className="pricingToolHeading">Objective Writer</h2>
+          <ul
+            className="pricingGrid pricingGridThreeCol"
+            role="list"
+            aria-label="Objective Writer pricing plans"
+            aria-describedby="pricing-desc"
+          >
+            {objectiveWriterIndividualTiers.map((tier) => (
+              <SuiteCard key={tier.id} tier={tier} listKey="individual-objective-writer" />
+            ))}
+          </ul>
+          <p className="pricingIndividualNote">Save 20% by switching to the suite plan.</p>
         </>
       )}
 
