@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet, Link } from "react-router-dom";
 import { useUser, SignInButton, UserButton } from "@clerk/clerk-react";
 
@@ -48,9 +48,17 @@ export default function Layout() {
           {isLoaded && isSignedIn && (
             <Link to="/dashboard" className="pricingLink">My Projects</Link>
           )}
-          <button type="button" className="modeToggle" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Toggle light and dark mode">
-            <span className="modeDot" aria-hidden="true" />
-            <span className="modeLabel">{theme === "dark" ? "Dark mode" : "Light mode"}</span>
+          <button
+            type="button"
+            className="themeToggle"
+            data-theme={theme}
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            <span className="themeToggleTrack" aria-hidden="true">
+              <span className="themeToggleDot" />
+            </span>
+            <span className="themeToggleLabel">{theme === "dark" ? "Dark" : "Light"}</span>
           </button>
           {renderAuth()}
           <span className="chip">Powered by Claude</span>

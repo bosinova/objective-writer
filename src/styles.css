@@ -212,45 +212,79 @@ body {
   background: rgba(15, 23, 42, 0.2);
 }
 
-.modeToggle {
+/* Theme toggle – switch style (pill track + moving dot) */
+.themeToggle {
   appearance: none;
-  border-radius: 999px;
-  border: 1px solid var(--stroke);
-  background: rgba(0, 0, 0, 0.08);
-  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  padding: 0;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
+  cursor: pointer;
   color: var(--muted);
   font-size: 12px;
-  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.themeToggle:hover {
+  color: var(--text);
+}
+
+.themeToggleTrack {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--stroke);
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease,
-    transform 120ms ease;
+    background-color 140ms ease,
+    border-color 140ms ease;
 }
 
-:root[data-theme="light"] .modeToggle {
-  background: rgba(15, 23, 42, 0.18);
-  color: #e5edff;
-  border-color: rgba(191, 219, 254, 0.75);
-}
-
-.modeToggle:hover {
-  transform: translateY(-0.5px);
+.themeToggle:hover .themeToggleTrack {
   border-color: var(--stroke2);
+  background: rgba(0, 0, 0, 0.35);
 }
 
-.modeDot {
-  width: 8px;
-  height: 8px;
+.themeToggleDot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   background: var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 160ms ease;
 }
 
-.modeLabel {
+.themeToggle[data-theme="light"] .themeToggleDot {
+  transform: translateX(22px);
+}
+
+.themeToggleLabel {
   white-space: nowrap;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .themeToggle {
+  color: #e5edff;
+}
+
+:root[data-theme="light"] .themeToggle:hover {
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .themeToggleTrack {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(191, 219, 254, 0.6);
+}
+
+:root[data-theme="light"] .themeToggle:hover .themeToggleTrack {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(191, 219, 254, 0.9);
 }
 
 .authSignInButton,
@@ -1365,7 +1399,7 @@ body {
     margin-top: 1px;
   }
 
-  .modeLabel {
+  .themeToggleLabel {
     display: none;
   }
 
