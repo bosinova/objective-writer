@@ -251,6 +251,63 @@ export default function Dashboard() {
     if (item.type === "note") {
       return <p style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{content.body as string}</p>;
     }
+    if (item.type === "outline") {
+      const courseTitle = content.courseTitle as string;
+      const targetAudience = content.targetAudience as string;
+      const estimatedDuration = content.estimatedDuration as string;
+      const modules = (content.modules as {
+        moduleTitle: string;
+        moduleDescription: string;
+        lessons: { title: string; estimatedDuration: string }[];
+        activities?: { activityType: string; activityDescription: string }[];
+      }[]) || [];
+      return (
+        <div>
+          <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--stroke)" }}>
+            <p style={{ margin: "0 0 4px 0", fontSize: "0.95rem", fontWeight: 600 }}>{courseTitle || "Untitled course"}</p>
+            {(targetAudience || estimatedDuration) && (
+              <p style={{ margin: 0, fontSize: "0.8rem", opacity: 0.8 }}>
+                {targetAudience && <span>{targetAudience}</span>}
+                {targetAudience && estimatedDuration && " · "}
+                {estimatedDuration && <span>{estimatedDuration}</span>}
+              </p>
+            )}
+          </div>
+          {modules.map((mod, i) => (
+            <div key={i} style={{ marginBottom: "16px" }}>
+              <p style={{ margin: "0 0 4px 0", fontSize: "0.875rem", fontWeight: 600 }}>{mod.moduleTitle || `Module ${i + 1}`}</p>
+              {mod.moduleDescription && (
+                <p style={{ margin: "0 0 8px 0", fontSize: "0.8rem", opacity: 0.8 }}>{mod.moduleDescription}</p>
+              )}
+              {mod.lessons && mod.lessons.length > 0 && (
+                <ol style={{ margin: "0 0 8px 0", paddingLeft: "20px", fontSize: "0.875rem" }}>
+                  {mod.lessons.map((les, j) => (
+                    <li key={j} style={{ marginBottom: "4px" }}>
+                      {les.title}
+                      {les.estimatedDuration && (
+                        <span style={{ fontSize: "0.75rem", opacity: 0.7, marginLeft: "6px" }}>({les.estimatedDuration})</span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {mod.activities && mod.activities.length > 0 && (
+                <div style={{ marginTop: "8px" }}>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.75rem", fontWeight: 600, opacity: 0.8 }}>Activities:</p>
+                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.8rem" }}>
+                    {mod.activities.map((a, k) => (
+                      <li key={k} style={{ marginBottom: "4px" }}>
+                        <strong>{a.activityType}</strong> — {a.activityDescription}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
     return <pre style={{ fontSize: "0.75rem", overflow: "auto" }}>{JSON.stringify(content, null, 2)}</pre>;
   }
 
