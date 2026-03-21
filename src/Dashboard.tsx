@@ -377,10 +377,10 @@ export default function Dashboard() {
                   <div style={{ fontSize: "0.75rem", opacity: 0.8, marginTop: "2px" }}>{project.description}</div>
                 )}
                 <button
-                  style={{ fontSize: "0.7rem", opacity: 0.6, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", color: "inherit" }}
+                  style={{ fontSize: "0.7rem", opacity: 0.8, background: "none", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "4px", cursor: "pointer", padding: "2px 8px", marginTop: "6px", color: "inherit" }}
                   onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
                 >
-                  Delete
+                  Delete project
                 </button>
               </li>
             ))}
