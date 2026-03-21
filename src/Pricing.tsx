@@ -230,9 +230,15 @@ export default function Pricing() {
           ← Back to app
         </Link>
       </div>
-      <h1 className="pricingTitle">Simple pricing for the whole Prism suite.</h1>
+      <h1 className="pricingTitle">
+        {pricingMode === "suite"
+          ? "Simple pricing for the whole Prism suite."
+          : "Individual tool pricing."}
+      </h1>
       <p className="pricingSubtitle" id="pricing-desc">
-        Choose the plan that fits your needs. All plans include activity suggestions and email delivery.
+        {pricingMode === "suite"
+          ? "Choose the plan that fits your needs. All plans include activity suggestions and email delivery."
+          : "Pick just the tool you need. Save 20% by switching to the suite plan."}
       </p>
 
       <div className="pricingToggleRow" role="group" aria-label="Pricing plan type">
