@@ -1250,13 +1250,6 @@ body {
   gap: 16px;
 }
 
-.pricingToolHeading {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 720;
-  letter-spacing: 0.02em;
-}
-
 .pricingToolList {
   list-style: none;
   padding: 0;

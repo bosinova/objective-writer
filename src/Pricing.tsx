@@ -267,7 +267,6 @@ export default function Pricing() {
         </ul>
       ) : (
         <>
-          <h2 className="pricingToolHeading">Objective Writer</h2>
           <ul
             className="pricingGrid pricingGridThreeCol"
             role="list"
