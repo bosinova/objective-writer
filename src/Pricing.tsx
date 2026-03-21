@@ -9,7 +9,68 @@ function CheckIcon() {
   );
 }
 
-const suiteTiers = [
+const OUTLINE_GENERATOR_URL = "https://outline-generator-rho.vercel.app";
+
+/** Shared shape for Suite and Individual tool pricing cards (SuiteCard). */
+type PricingCardTier = {
+  id: string;
+  name: string;
+  price: string;
+  period?: string;
+  cta: string;
+  badge: string | null;
+  features: string[];
+  /** When cta is Get started: internal path or full URL */
+  ctaHref?: string;
+};
+
+const individualTiers: {
+  objectiveWriter: PricingCardTier[];
+  outlineGenerator: PricingCardTier[];
+} = {
+  objectiveWriter: [
+    {
+      id: "free",
+      name: "Free",
+      price: "$0",
+      cta: "Get started",
+      badge: null,
+      ctaHref: "/",
+      features: ["1 objective per generation", "5 generations/month"],
+    },
+    {
+      id: "pro",
+      name: "Pro",
+      price: "$9.99",
+      period: "/mo",
+      cta: "Subscribe",
+      badge: "Best value",
+      features: ["10 objectives per generation", "Unlimited generations"],
+    },
+  ],
+  outlineGenerator: [
+    {
+      id: "free",
+      name: "Free",
+      price: "$0",
+      cta: "Get started",
+      badge: null,
+      ctaHref: OUTLINE_GENERATOR_URL,
+      features: ["1 outline per generation", "5 generations/month"],
+    },
+    {
+      id: "pro",
+      name: "Pro",
+      price: "$9.99",
+      period: "/mo",
+      cta: "Subscribe",
+      badge: "Best value",
+      features: ["10 outlines per generation", "Unlimited generations"],
+    },
+  ],
+};
+
+const suiteTiers: PricingCardTier[] = [
   {
     id: "free",
     name: "Free",
@@ -59,19 +120,6 @@ const suiteTiers = [
   },
 ];
 
-const OUTLINE_GENERATOR_URL = "https://outline-generator-rho.vercel.app";
-
-const individualTiers = {
-  objectiveWriter: [
-    { id: "free", name: "Free", price: "$0", cta: "Get started", ctaHref: "/", features: ["1 objective per generation", "5 generations/month"] },
-    { id: "pro", name: "Pro", price: "$9.99", period: "/mo", cta: "Subscribe", features: ["10 objectives per generation", "Unlimited generations"] },
-  ],
-  outlineGenerator: [
-    { id: "free", name: "Free", price: "$0", cta: "Get started", ctaHref: OUTLINE_GENERATOR_URL, features: ["1 outline per generation", "5 generations/month"] },
-    { id: "pro", name: "Pro", price: "$9.99", period: "/mo", cta: "Subscribe", features: ["10 outlines per generation", "Unlimited generations"] },
-  ],
-};
-
 function getCtaAriaLabel(cta: string, name: string): string {
   if (cta === "Get started") return `Get started with ${name} plan`;
   if (cta === "Subscribe") return `Subscribe to ${name} plan`;
@@ -79,12 +127,48 @@ function getCtaAriaLabel(cta: string, name: string): string {
   return cta;
 }
 
-type SuiteTier = (typeof suiteTiers)[number];
-type IndividualTier = (typeof individualTiers.objectiveWriter)[number] & { ctaHref?: string };
+function SuiteCard({ tier, listKey }: { tier: PricingCardTier; listKey: string }) {
+  const headingId = `pricing-heading-${listKey}-${tier.id}`;
+  const featuresId = `pricing-features-${listKey}-${tier.id}`;
+  const ctaClassPro = tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary";
 
-function SuiteCard({ tier }: { tier: SuiteTier }) {
-  const headingId = `pricing-heading-${tier.id}`;
-  const featuresId = `pricing-features-${tier.id}`;
+  const getStartedLink = (child: React.ReactNode) => {
+    const href = tier.ctaHref;
+    if (href?.startsWith("http")) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`pricingCta pricingCtaLink ${ctaClassPro}`}
+          aria-label={getCtaAriaLabel(tier.cta, tier.name)}
+        >
+          {child}
+        </a>
+      );
+    }
+    if (href) {
+      return (
+        <Link
+          to={href}
+          className={`pricingCta pricingCtaLink ${ctaClassPro}`}
+          aria-label={getCtaAriaLabel(tier.cta, tier.name)}
+        >
+          {child}
+        </Link>
+      );
+    }
+    return (
+      <Link
+        to="/"
+        className={`pricingCta pricingCtaLink ${ctaClassPro}`}
+        aria-label={getCtaAriaLabel(tier.cta, tier.name)}
+      >
+        {child}
+      </Link>
+    );
+  };
+
   return (
     <li
       className={`pricingCard ${tier.id === "pro" ? "pricingCardHighlight" : ""}`}
@@ -126,17 +210,11 @@ function SuiteCard({ tier }: { tier: SuiteTier }) {
         ))}
       </ul>
       {tier.cta === "Get started" ? (
-        <Link
-          to="/"
-          className={`pricingCta pricingCtaLink ${tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary"}`}
-          aria-label={getCtaAriaLabel(tier.cta, tier.name)}
-        >
-          {tier.cta}
-        </Link>
+        getStartedLink(tier.cta)
       ) : (
         <button
           type="button"
-          className={`pricingCta ${tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary"}`}
+          className={`pricingCta ${ctaClassPro}`}
           aria-label={getCtaAriaLabel(tier.cta, tier.name)}
         >
           {tier.cta}
@@ -202,78 +280,6 @@ function IndividualTeamTier() {
   );
 }
 
-function IndividualCard({ tier, toolName }: { tier: IndividualTier; toolName: string }) {
-  const headingId = `pricing-ind-heading-${toolName}-${tier.id}`;
-  const featuresId = `pricing-ind-features-${toolName}-${tier.id}`;
-  return (
-    <li
-      className={`pricingCard ${tier.id === "pro" ? "pricingCardHighlight" : ""}`}
-      role="listitem"
-      aria-labelledby={headingId}
-      aria-describedby={featuresId}
-    >
-      <h2 id={headingId} className="pricingCardName">
-        {tier.name}
-      </h2>
-      <div className="pricingCardPrice">
-        <span className="pricingPriceAmount">{tier.price}</span>
-        {tier.period && (
-          <span className="pricingPricePeriod" aria-hidden="true">
-            {tier.period}
-          </span>
-        )}
-      </div>
-      <ul id={featuresId} className="pricingCardFeatures" aria-label={`${tier.name} plan features`}>
-        {tier.features.map((f, i) => (
-          <li key={i}>
-            <CheckIcon />
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-      {tier.cta === "Get started" ? (
-        "ctaHref" in tier && tier.ctaHref ? (
-          tier.ctaHref.startsWith("http") ? (
-            <a
-              href={tier.ctaHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`pricingCta pricingCtaLink ${tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary"}`}
-              aria-label={getCtaAriaLabel(tier.cta, tier.name)}
-            >
-              {tier.cta}
-            </a>
-          ) : (
-            <Link
-              to={tier.ctaHref}
-              className={`pricingCta pricingCtaLink ${tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary"}`}
-              aria-label={getCtaAriaLabel(tier.cta, tier.name)}
-            >
-              {tier.cta}
-            </Link>
-          )
-        ) : (
-          <Link
-            to="/"
-            className={`pricingCta pricingCtaLink ${tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary"}`}
-            aria-label={getCtaAriaLabel(tier.cta, tier.name)}
-          >
-            {tier.cta}
-          </Link>
-        )
-      ) : (
-        <button
-          type="button"
-          className={`pricingCta ${tier.id === "pro" ? "pricingCtaPrimary" : "pricingCtaSecondary"}`}
-          aria-label={getCtaAriaLabel(tier.cta, tier.name)}
-        >
-          {tier.cta}
-        </button>
-      )}
-    </li>
-  );
-}
-
 export default function Pricing() {
   /** Default tab: Suite (Save 20%) */
   const [pricingMode, setPricingMode] = useState<"suite" | "individual">("suite");
@@ -317,7 +323,7 @@ export default function Pricing() {
           aria-describedby="pricing-desc"
         >
           {suiteTiers.map((tier) => (
-            <SuiteCard key={tier.id} tier={tier} />
+            <SuiteCard key={tier.id} tier={tier} listKey="suite" />
           ))}
         </ul>
       ) : (
@@ -327,7 +333,7 @@ export default function Pricing() {
               <h2 className="pricingToolHeading">Objective Writer</h2>
               <ul className="pricingToolList" aria-label="Objective Writer pricing plans">
                 {individualTiers.objectiveWriter.map((tier) => (
-                  <IndividualCard key={tier.id} tier={tier} toolName="objective-writer" />
+                  <SuiteCard key={tier.id} tier={tier} listKey="objective-writer" />
                 ))}
               </ul>
             </div>
@@ -335,7 +341,7 @@ export default function Pricing() {
               <h2 className="pricingToolHeading">Outline Generator</h2>
               <ul className="pricingToolList" aria-label="Outline Generator pricing plans">
                 {individualTiers.outlineGenerator.map((tier) => (
-                  <IndividualCard key={tier.id} tier={tier} toolName="outline-generator" />
+                  <SuiteCard key={tier.id} tier={tier} listKey="outline-generator" />
                 ))}
               </ul>
             </div>
