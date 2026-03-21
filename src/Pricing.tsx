@@ -48,7 +48,7 @@ const suiteTiers = [
     price: "$69.99",
     period: "/mo",
     cta: "Contact us",
-    badge: "Multiple seats",
+    badge: "Multiple seats · Coming soon",
     features: [
       "Everything in Pro",
       "Multiple seats (up to 10)",
@@ -95,7 +95,13 @@ function SuiteCard({ tier }: { tier: SuiteTier }) {
       {tier.badge && (
         <span
           className={`pricingBadge ${tier.id === "pro" ? "pricingBadgePopular" : "pricingBadgeMuted"}`}
-          aria-label={tier.id === "pro" ? "Best value plan" : tier.id === "team" ? "Multiple seats plan" : ""}
+          aria-label={
+            tier.id === "pro"
+              ? "Best value plan"
+              : tier.id === "team"
+                ? "Multiple seats plan, coming soon"
+                : ""
+          }
         >
           {tier.badge}
         </span>
@@ -152,9 +158,9 @@ function IndividualTeamTier() {
       <div className="pricingIndividualTeamCard">
         <span
           className="pricingBadge pricingBadgeMuted"
-          aria-label="Multiple seats plan"
+          aria-label="Multiple seats plan, coming soon"
         >
-          Multiple seats
+          Multiple seats · Coming soon
         </span>
         <div className="pricingIndividualTeamLayout">
           <div className="pricingIndividualTeamMain">
@@ -269,6 +275,7 @@ function IndividualCard({ tier, toolName }: { tier: IndividualTier; toolName: st
 }
 
 export default function Pricing() {
+  /** Default tab: Suite (Save 20%) */
   const [pricingMode, setPricingMode] = useState<"suite" | "individual">("suite");
 
   return (
