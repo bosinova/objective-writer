@@ -27,6 +27,17 @@ export default function Dashboard() {
   const [editContent, setEditContent] = useState<string>("");
   const [editTitle, setEditTitle] = useState<string>("");
   const [editObjectives, setEditObjectives] = useState<{ text: string; activities: Activity[] }[]>([]);
+  const [editOutline, setEditOutline] = useState<{
+    courseTitle: string;
+    targetAudience: string;
+    estimatedDuration: string;
+    modules: {
+      moduleTitle: string;
+      moduleDescription: string;
+      lessons: { title: string; estimatedDuration: string }[];
+      activities: { activityType: string; activityDescription: string }[];
+    }[];
+  } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
@@ -122,6 +133,7 @@ export default function Dashboard() {
     setEditTitle(item.title);
     const content = item.content as Record<string, unknown>;
     if (item.type === "objective") {
+      setEditOutline(null);
       const objectives = content.objectives as { text: string; activities?: Activity[] }[] | string[] | undefined;
       const parsed: { text: string; activities: Activity[] }[] = objectives
         ? objectives.map((o) => {
@@ -130,9 +142,36 @@ export default function Dashboard() {
           })
         : [];
       setEditObjectives(parsed);
+    } else if (item.type === "outline") {
+      setEditObjectives([]);
+      const modules = (content.modules as {
+        moduleTitle?: string;
+        moduleDescription?: string;
+        lessons?: { title?: string; estimatedDuration?: string }[];
+        activities?: { activityType?: string; activityDescription?: string }[];
+      }[]) || [];
+      setEditOutline({
+        courseTitle: (content.courseTitle as string) || "",
+        targetAudience: (content.targetAudience as string) || "",
+        estimatedDuration: (content.estimatedDuration as string) || "",
+        modules: modules.map((m) => ({
+          moduleTitle: m.moduleTitle || "",
+          moduleDescription: m.moduleDescription || "",
+          lessons: (m.lessons || []).map((l) => ({
+            title: l.title || "",
+            estimatedDuration: l.estimatedDuration || "",
+          })),
+          activities: (m.activities || []).map((a) => ({
+            activityType: a.activityType || "",
+            activityDescription: a.activityDescription || "",
+          })),
+        })),
+      });
     } else if (item.type === "note") {
+      setEditOutline(null);
       setEditContent((content.body as string) || "");
     } else {
+      setEditOutline(null);
       setEditContent(JSON.stringify(content, null, 2));
     }
   }
@@ -152,6 +191,24 @@ export default function Dashboard() {
           })),
         })),
       };
+    } else if (item.type === "outline" && editOutline) {
+      updatedContent = {
+        courseTitle: editOutline.courseTitle.trim(),
+        targetAudience: editOutline.targetAudience.trim(),
+        estimatedDuration: editOutline.estimatedDuration.trim(),
+        modules: editOutline.modules.map((m) => ({
+          moduleTitle: m.moduleTitle.trim(),
+          moduleDescription: m.moduleDescription.trim(),
+          lessons: m.lessons.map((l) => ({
+            title: l.title.trim(),
+            estimatedDuration: l.estimatedDuration.trim(),
+          })),
+          activities: m.activities.map((a) => ({
+            activityType: a.activityType.trim(),
+            activityDescription: a.activityDescription.trim(),
+          })),
+        })),
+      };
     } else if (item.type === "note") {
       updatedContent = { body: editContent };
     } else {
@@ -168,6 +225,7 @@ export default function Dashboard() {
         i.id === item.id ? { ...i, title: editTitle, content: updatedContent } : i
       ));
       setEditingItem(null);
+      setEditOutline(null);
     }
     setSavingEdit(false);
   }
@@ -473,7 +531,7 @@ export default function Dashboard() {
                             <button className="button" style={{ fontSize: "0.8rem", padding: "4px 10px" }} onClick={() => saveEdit(item)} disabled={savingEdit}>
                               {savingEdit ? "Saving..." : "Save"}
                             </button>
-                            <button className="copyButton" onClick={() => setEditingItem(null)}>Cancel</button>
+                            <button className="copyButton" onClick={() => { setEditingItem(null); setEditOutline(null); }}>Cancel</button>
                           </>
                         ) : (
                           <>
@@ -566,6 +624,188 @@ export default function Dashboard() {
                                       )
                                     }
                                     placeholder="Why it fits"
+                                    style={{ fontSize: "0.8rem" }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ) : item.type === "outline" && editOutline ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                          <div style={{ padding: "12px", background: "var(--surface)", borderRadius: "8px" }}>
+                            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, marginBottom: "6px" }}>Course title</label>
+                            <input
+                              className="input"
+                              value={editOutline.courseTitle}
+                              onChange={(e) => setEditOutline((prev) => prev && { ...prev, courseTitle: e.target.value })}
+                              placeholder="Course title"
+                              style={{ marginBottom: "8px", width: "100%" }}
+                            />
+                            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, marginBottom: "6px" }}>Target audience</label>
+                            <input
+                              className="input"
+                              value={editOutline.targetAudience}
+                              onChange={(e) => setEditOutline((prev) => prev && { ...prev, targetAudience: e.target.value })}
+                              placeholder="Target audience"
+                              style={{ marginBottom: "8px", width: "100%" }}
+                            />
+                            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, marginBottom: "6px" }}>Estimated duration</label>
+                            <input
+                              className="input"
+                              value={editOutline.estimatedDuration}
+                              onChange={(e) => setEditOutline((prev) => prev && { ...prev, estimatedDuration: e.target.value })}
+                              placeholder="e.g. 4 weeks"
+                              style={{ width: "100%" }}
+                            />
+                          </div>
+                          {editOutline.modules.map((mod, modIdx) => (
+                            <div key={modIdx} style={{ padding: "12px", background: "var(--surface)", borderRadius: "8px" }}>
+                              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, marginBottom: "6px" }}>
+                                Module {modIdx + 1}
+                              </label>
+                              <input
+                                className="input"
+                                value={mod.moduleTitle}
+                                onChange={(e) =>
+                                  setEditOutline((prev) =>
+                                    prev ? {
+                                      ...prev,
+                                      modules: prev.modules.map((m, i) =>
+                                        i === modIdx ? { ...m, moduleTitle: e.target.value } : m
+                                      ),
+                                    } : null
+                                  )
+                                }
+                                placeholder="Module title"
+                                style={{ marginBottom: "8px", width: "100%" }}
+                              />
+                              <input
+                                className="input"
+                                value={mod.moduleDescription}
+                                onChange={(e) =>
+                                  setEditOutline((prev) =>
+                                    prev ? {
+                                      ...prev,
+                                      modules: prev.modules.map((m, i) =>
+                                        i === modIdx ? { ...m, moduleDescription: e.target.value } : m
+                                      ),
+                                    } : null
+                                  )
+                                }
+                                placeholder="Module description"
+                                style={{ marginBottom: "12px", width: "100%" }}
+                              />
+                              {mod.lessons.map((les, lesIdx) => (
+                                <div key={lesIdx} style={{ marginBottom: "12px", paddingLeft: "12px", borderLeft: "2px solid var(--stroke)" }}>
+                                  <label style={{ display: "block", fontSize: "0.7rem", opacity: 0.8, marginBottom: "4px" }}>
+                                    Lesson {lesIdx + 1}
+                                  </label>
+                                  <input
+                                    className="input"
+                                    value={les.title}
+                                    onChange={(e) =>
+                                      setEditOutline((prev) =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              modules: prev.modules.map((m, i) =>
+                                                i === modIdx
+                                                  ? {
+                                                      ...m,
+                                                      lessons: m.lessons.map((l, j) =>
+                                                        j === lesIdx ? { ...l, title: e.target.value } : l
+                                                      ),
+                                                    }
+                                                  : m
+                                              ),
+                                            }
+                                          : null
+                                      )
+                                    }
+                                    placeholder="Lesson title"
+                                    style={{ marginBottom: "6px", fontSize: "0.8rem" }}
+                                  />
+                                  <input
+                                    className="input"
+                                    value={les.estimatedDuration}
+                                    onChange={(e) =>
+                                      setEditOutline((prev) =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              modules: prev.modules.map((m, i) =>
+                                                i === modIdx
+                                                  ? {
+                                                      ...m,
+                                                      lessons: m.lessons.map((l, j) =>
+                                                        j === lesIdx ? { ...l, estimatedDuration: e.target.value } : l
+                                                      ),
+                                                    }
+                                                  : m
+                                              ),
+                                            }
+                                          : null
+                                      )
+                                    }
+                                    placeholder="Estimated duration"
+                                    style={{ fontSize: "0.8rem" }}
+                                  />
+                                </div>
+                              ))}
+                              {mod.activities.map((act, actIdx) => (
+                                <div key={actIdx} style={{ marginBottom: "12px", paddingLeft: "12px", borderLeft: "2px solid var(--stroke)" }}>
+                                  <label style={{ display: "block", fontSize: "0.7rem", opacity: 0.8, marginBottom: "4px" }}>
+                                    Activity {actIdx + 1}
+                                  </label>
+                                  <input
+                                    className="input"
+                                    value={act.activityType}
+                                    onChange={(e) =>
+                                      setEditOutline((prev) =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              modules: prev.modules.map((m, i) =>
+                                                i === modIdx
+                                                  ? {
+                                                      ...m,
+                                                      activities: m.activities.map((a, j) =>
+                                                        j === actIdx ? { ...a, activityType: e.target.value } : a
+                                                      ),
+                                                    }
+                                                  : m
+                                              ),
+                                            }
+                                          : null
+                                      )
+                                    }
+                                    placeholder="Activity type"
+                                    style={{ marginBottom: "6px", fontSize: "0.8rem" }}
+                                  />
+                                  <input
+                                    className="input"
+                                    value={act.activityDescription}
+                                    onChange={(e) =>
+                                      setEditOutline((prev) =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              modules: prev.modules.map((m, i) =>
+                                                i === modIdx
+                                                  ? {
+                                                      ...m,
+                                                      activities: m.activities.map((a, j) =>
+                                                        j === actIdx ? { ...a, activityDescription: e.target.value } : a
+                                                      ),
+                                                    }
+                                                  : m
+                                              ),
+                                            }
+                                          : null
+                                      )
+                                    }
+                                    placeholder="Activity description"
                                     style={{ fontSize: "0.8rem" }}
                                   />
                                 </div>
