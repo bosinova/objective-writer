@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const [editTitle, setEditTitle] = useState<string>("");
+  const [editObjectives, setEditObjectives] = useState<{ text: string; activities: Activity[] }[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
@@ -122,11 +123,13 @@ export default function Dashboard() {
     const content = item.content as Record<string, unknown>;
     if (item.type === "objective") {
       const objectives = content.objectives as { text: string; activities?: Activity[] }[] | string[] | undefined;
-      setEditContent(
-        objectives
-          ? objectives.map((o) => (typeof o === "string" ? o : o.text)).join("\n")
-          : ""
-      );
+      const parsed: { text: string; activities: Activity[] }[] = objectives
+        ? objectives.map((o) => {
+            if (typeof o === "string") return { text: o, activities: [] };
+            return { text: o.text, activities: o.activities || [] };
+          })
+        : [];
+      setEditObjectives(parsed);
     } else if (item.type === "note") {
       setEditContent((content.body as string) || "");
     } else {
@@ -138,17 +141,16 @@ export default function Dashboard() {
     setSavingEdit(true);
     let updatedContent: Record<string, unknown> = {};
     if (item.type === "objective") {
-      const lines = editContent.split("\n").map((l) => l.trim()).filter(Boolean);
-      const existingObjectives = item.content.objectives as { text: string; activities?: Activity[] }[] | string[] | undefined;
       updatedContent = {
         ...item.content,
-        objectives: lines.map((text, i) => {
-          const existing = existingObjectives?.[i];
-          return {
-            text,
-            activities: existing && typeof existing !== "string" ? existing.activities : [],
-          };
-        }),
+        objectives: editObjectives.map((obj) => ({
+          text: obj.text.trim(),
+          activities: obj.activities.map((a) => ({
+            activityType: a.activityType.trim(),
+            description: a.description.trim(),
+            whyItFits: a.whyItFits.trim(),
+          })),
+        })),
       };
     } else if (item.type === "note") {
       updatedContent = { body: editContent };
@@ -426,12 +428,102 @@ export default function Dashboard() {
                     </div>
 
                     {editingItem === item.id ? (
-                      <textarea
-                        className="textarea"
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        rows={6}
-                      />
+                      item.type === "objective" ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                          {editObjectives.map((obj, objIdx) => (
+                            <div key={objIdx} style={{ padding: "12px", background: "var(--surface)", borderRadius: "8px" }}>
+                              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, marginBottom: "6px" }}>
+                                Objective {objIdx + 1}
+                              </label>
+                              <input
+                                className="input"
+                                value={obj.text}
+                                onChange={(e) =>
+                                  setEditObjectives((prev) =>
+                                    prev.map((o, i) => (i === objIdx ? { ...o, text: e.target.value } : o))
+                                  )
+                                }
+                                placeholder="Objective text"
+                                style={{ marginBottom: "12px", width: "100%" }}
+                              />
+                              {obj.activities.map((act, actIdx) => (
+                                <div key={actIdx} style={{ marginBottom: "12px", paddingLeft: "12px", borderLeft: "2px solid var(--stroke)" }}>
+                                  <label style={{ display: "block", fontSize: "0.7rem", opacity: 0.8, marginBottom: "4px" }}>
+                                    Activity {actIdx + 1}
+                                  </label>
+                                  <input
+                                    className="input"
+                                    value={act.activityType}
+                                    onChange={(e) =>
+                                      setEditObjectives((prev) =>
+                                        prev.map((o, i) =>
+                                          i === objIdx
+                                            ? {
+                                                ...o,
+                                                activities: o.activities.map((a, j) =>
+                                                  j === actIdx ? { ...a, activityType: e.target.value } : a
+                                                ),
+                                              }
+                                            : o
+                                        )
+                                      )
+                                    }
+                                    placeholder="Activity type"
+                                    style={{ marginBottom: "6px", fontSize: "0.8rem" }}
+                                  />
+                                  <input
+                                    className="input"
+                                    value={act.description}
+                                    onChange={(e) =>
+                                      setEditObjectives((prev) =>
+                                        prev.map((o, i) =>
+                                          i === objIdx
+                                            ? {
+                                                ...o,
+                                                activities: o.activities.map((a, j) =>
+                                                  j === actIdx ? { ...a, description: e.target.value } : a
+                                                ),
+                                              }
+                                            : o
+                                        )
+                                      )
+                                    }
+                                    placeholder="Description"
+                                    style={{ marginBottom: "6px", fontSize: "0.8rem" }}
+                                  />
+                                  <input
+                                    className="input"
+                                    value={act.whyItFits}
+                                    onChange={(e) =>
+                                      setEditObjectives((prev) =>
+                                        prev.map((o, i) =>
+                                          i === objIdx
+                                            ? {
+                                                ...o,
+                                                activities: o.activities.map((a, j) =>
+                                                  j === actIdx ? { ...a, whyItFits: e.target.value } : a
+                                                ),
+                                              }
+                                            : o
+                                        )
+                                      )
+                                    }
+                                    placeholder="Why it fits"
+                                    style={{ fontSize: "0.8rem" }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <textarea
+                          className="textarea"
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={6}
+                        />
+                      )
                     ) : (
                       renderItemContent(item)
                     )}
