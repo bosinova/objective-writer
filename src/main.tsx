@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import App from "./App";
 import Layout from "./Layout";
 import Pricing from "./Pricing";
+import Dashboard from "./Dashboard";
 import "./styles.css";
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -21,10 +22,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/" element={<Layout />}>
             <Route index element={<App />} />
             <Route path="pricing" element={<Pricing />} />
+            <Route path="dashboard" element={<Dashboard />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </ClerkProvider>
   </React.StrictMode>,
 );
-

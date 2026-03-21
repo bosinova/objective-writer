@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { supabase } from './supabase';
+import type { Project } from './supabase';
 
 const bloomsLevels = [
   "Remembering",
@@ -96,9 +97,7 @@ function sampleObjectives(params: {
   for (let i = 0; i < Math.min(n, chosen.length); i++) {
     objectives.push({
       id: `${params.blooms}-${i}`,
-      text: `For ${audience}, by the end of this module, students will be able to ${chosen[i]
-        .replace(/\.$/, "")
-        .toLowerCase()}.`,
+      text: `For ${audience}, by the end of this module, students will be able to ${chosen[i].replace(/\.$/, "").toLowerCase()}.`,
     });
   }
 
@@ -156,13 +155,8 @@ async function generateObjectivesViaClaude(params: {
   }
 
   const data: { content?: { type: string; text?: string }[] } = await response.json();
-  console.log("[Objective Writer] Claude raw response data:", data);
-
   const text = (data.content && data.content[0] && data.content[0].text) || "";
-  const lines = text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
 
   if (!lines.length) {
     throw new Error("Claude returned no objectives. Check the console for the raw response.");
@@ -272,6 +266,11 @@ export default function App() {
   const [includeActivitySuggestions, setIncludeActivitySuggestions] = useState(false);
   const [activitiesSectionExpanded, setActivitiesSectionExpanded] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [projects, setProjects] = useState<{id: string, name: string}[]>([]);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [saveTitle, setSaveTitle] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const { isSignedIn, user } = useUser();
   const { userId } = useAuth();
@@ -413,6 +412,45 @@ export default function App() {
     }
   }
 
+  async function openSaveModal() {
+    if (!userId) return;
+    const { data: projectData } = await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (projectData && projectData.length > 0) {
+      setProjects(projectData);
+      setSaveTitle(`${blooms} objectives - ${audience}`);
+      setSelectedProjectId(projectData[0].id);
+      setShowSaveModal(true);
+    }
+  }
+
+  async function saveToProject() {
+    if (!userId || !selectedProjectId || !saveTitle.trim()) return;
+    setSaving(true);
+    const { error } = await supabase.from("saved_items").insert({
+      user_id: userId,
+      project_id: selectedProjectId,
+      type: "objective",
+      title: saveTitle.trim(),
+      content: {
+        blooms_level: blooms,
+        audience,
+        objectives: objectives.map((o) => ({
+          text: o.text,
+          activities: activitiesByObjectiveId[o.id] || [],
+        })),
+      },
+    });
+    if (!error) {
+      setSaved(true);
+      setShowSaveModal(false);
+    }
+    setSaving(false);
+  }
+
   async function onGenerate() {
     setStatus("generating");
     setGenerateError(null);
@@ -432,18 +470,6 @@ export default function App() {
       });
       setObjectives(results);
       setHasGenerated(true);
-
-      // Save to Supabase if signed in
-      if (userId) {
-        const { error: saveError } = await supabase.from("saved_objectives").insert({
-          user_id: userId,
-          blooms_level: blooms,
-          audience,
-          content_summary: trimmedContent.slice(0, 200),
-          objectives: results.map((o) => o.text),
-        });
-        if (!saveError) setSaved(true);
-      }
 
       if (wantActivities && results.length > 0) {
         setActivitiesSectionExpanded(true);
@@ -581,11 +607,10 @@ export default function App() {
               className="checkbox"
               checked={includeActivitySuggestions}
               onChange={(e) => setIncludeActivitySuggestions(e.target.checked)}
-              aria-describedby={includeActivitiesId ? `${includeActivitiesId}-desc` : undefined}
             />
             <span className="checkboxText">Include activity suggestions with my objectives</span>
           </label>
-          <span id={`${includeActivitiesId}-desc`} className="checkboxDescription">
+          <span className="checkboxDescription">
             When checked, suggested activities are generated for each objective after objectives load.
           </span>
         </div>
@@ -618,7 +643,7 @@ export default function App() {
               </div>
               {saved && (
                 <div style={{ fontSize: "0.75rem", color: "#7ab87a", marginTop: "4px" }}>
-                  ✓ Saved to My Library
+                  Saved to project
                 </div>
               )}
             </div>
@@ -677,6 +702,11 @@ export default function App() {
                 {emailSuccess && <span className="emailSuccessMessage" aria-live="polite">Email sent!</span>}
                 {emailError && <span className="emailErrorMessage" role="alert">{emailError}</span>}
               </div>
+            )}
+            {isSignedIn && !showEmailForm && (
+              <button type="button" className="copyButton" onClick={openSaveModal}>
+                Save to Project
+              </button>
             )}
           </div>
 
@@ -779,11 +809,58 @@ export default function App() {
                     {emailError && <span className="emailErrorMessage" role="alert">{emailError}</span>}
                   </div>
                 )}
+                {isSignedIn && !showEmailForm && (
+                  <button type="button" className="copyButton" onClick={openSaveModal}>
+                    Save to Project
+                  </button>
+                )}
               </div>
             )}
           </div>
         </section>
       )}
+
+      {showSaveModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+        }}>
+          <div style={{
+            background: "var(--surface1, #1a2236)", borderRadius: "12px",
+            padding: "24px", width: "100%", maxWidth: "420px", boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+          }}>
+            <h2 style={{ margin: "0 0 16px", fontSize: "1.1rem" }}>Save to Project</h2>
+            <div className="field" style={{ marginBottom: "12px" }}>
+              <label className="label">Title</label>
+              <input
+                className="input"
+                value={saveTitle}
+                onChange={(e) => setSaveTitle(e.target.value)}
+                placeholder="Give this set of objectives a title"
+              />
+            </div>
+            <div className="field" style={{ marginBottom: "20px" }}>
+              <label className="label">Project</label>
+              <select
+                className="select"
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button className="button" onClick={saveToProject} disabled={saving || !saveTitle.trim()}>
+                {saving ? "Saving..." : "Save"}
+              </button>
+              <button className="copyButton" onClick={() => setShowSaveModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Analytics />
     </div>
   );
