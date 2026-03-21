@@ -1169,10 +1169,111 @@ body {
 }
 
 .pricingSubtitle {
-  margin: 0 0 28px 0;
+  margin: 0 0 20px 0;
   font-size: 14px;
   color: var(--pricingMuted);
   max-width: 560px;
+}
+
+.pricingToggleRow {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid var(--stroke2);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px;
+  margin-bottom: 24px;
+  gap: 2px;
+}
+
+.pricingToggleBtn {
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.pricingToggleBtn:hover {
+  color: var(--text);
+}
+
+.pricingToggleBtnActive {
+  background: rgba(43, 107, 255, 0.25);
+  color: var(--accent);
+}
+
+.pricingToggleBtnActive:hover {
+  color: var(--accent);
+}
+
+:root[data-theme="light"] .pricingToggleRow {
+  background: rgba(15, 23, 42, 0.08);
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+:root[data-theme="light"] .pricingToggleBtn {
+  color: var(--muted);
+}
+
+:root[data-theme="light"] .pricingToggleBtn:hover {
+  color: var(--text);
+}
+
+:root[data-theme="light"] .pricingToggleBtnActive {
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--accent);
+}
+
+.pricingIndividualGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .pricingIndividualGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pricingToolColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pricingToolHeading {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: 0.02em;
+}
+
+.pricingToolList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pricingIndividualNote {
+  margin: 20px 0 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+:root[data-theme="light"] .pricingIndividualNote {
+  color: var(--muted);
 }
 
 .pricingGrid {
@@ -1197,7 +1298,8 @@ body {
 }
 
 @media (max-width: 600px) {
-  .pricingGrid {
+  .pricingGrid,
+  .pricingGridThreeCol {
     grid-template-columns: 1fr;
   }
 }
@@ -1251,6 +1353,11 @@ body {
 .pricingPriceAmount {
   font-size: 24px;
   font-weight: 760;
+  color: var(--accent);
+}
+
+:root[data-theme="light"] .pricingPriceAmount {
+  color: var(--accent);
 }
 
 .pricingPricePeriod {
@@ -1266,6 +1373,9 @@ body {
 }
 
 .pricingCardFeatures li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   padding: 6px 0;
   font-size: 13px;
   color: var(--pricingMuted);
@@ -1275,6 +1385,16 @@ body {
 
 .pricingCardFeatures li:last-child {
   border-bottom: none;
+}
+
+.pricingCheck {
+  flex-shrink: 0;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+:root[data-theme="light"] .pricingCheck {
+  color: var(--accent);
 }
 
 .pricingCta,
