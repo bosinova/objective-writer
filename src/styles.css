@@ -1266,6 +1266,87 @@ body {
   gap: 16px;
 }
 
+.pricingIndividualTeam {
+  margin-top: 24px;
+  width: 100%;
+}
+
+.pricingIndividualTeamCard {
+  position: relative;
+  width: 100%;
+  padding: 20px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
+}
+
+.pricingIndividualTeamLayout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pricingIndividualTeamMain {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.pricingIndividualTeamPriceBlock {
+  margin-bottom: 12px;
+}
+
+.pricingIndividualTeamPriceLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pricingIndividualTeamBundle {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+  color: var(--pricingMuted);
+  line-height: 1.45;
+}
+
+.pricingIndividualTeamSuiteNote {
+  margin: 16px 0 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.pricingIndividualTeamCtaWrap {
+  flex: 0 0 auto;
+  width: min(100%, 220px);
+  align-self: center;
+}
+
+.pricingIndividualTeamCtaWrap .pricingCta {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .pricingIndividualTeamCtaWrap {
+    width: 100%;
+    align-self: stretch;
+  }
+}
+
+:root[data-theme="light"] .pricingIndividualTeamCard {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: linear-gradient(180deg, #ffffff, #f9fafb);
+}
+
+:root[data-theme="light"] .pricingIndividualTeamSuiteNote {
+  border-top-color: rgba(148, 163, 184, 0.25);
+}
+
 .pricingIndividualNote {
   margin: 20px 0 0 0;
   font-size: 13px;

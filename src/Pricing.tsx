@@ -140,6 +140,62 @@ function SuiteCard({ tier }: { tier: SuiteTier }) {
   );
 }
 
+function IndividualTeamTier() {
+  const headingId = "pricing-ind-team-heading";
+  const featuresId = "pricing-ind-team-features";
+  return (
+    <section
+      className="pricingIndividualTeam"
+      aria-labelledby={headingId}
+      aria-describedby={featuresId}
+    >
+      <div className="pricingIndividualTeamCard">
+        <span
+          className="pricingBadge pricingBadgeMuted"
+          aria-label="Multiple seats plan"
+        >
+          Multiple seats
+        </span>
+        <div className="pricingIndividualTeamLayout">
+          <div className="pricingIndividualTeamMain">
+            <h2 id={headingId} className="pricingCardName">
+              Team
+            </h2>
+            <div className="pricingCardPrice pricingIndividualTeamPriceBlock">
+              <div className="pricingIndividualTeamPriceLine">
+                <span className="pricingPriceAmount">$19.99</span>
+                <span className="pricingPricePeriod">/month per tool</span>
+              </div>
+              <p className="pricingIndividualTeamBundle">
+                or <strong>$34.99</strong>/month for both tools bundled
+              </p>
+            </div>
+            <ul id={featuresId} className="pricingCardFeatures" aria-label="Team plan features">
+              <li>
+                <CheckIcon />
+                <span>Everything in Pro for one tool</span>
+              </li>
+            </ul>
+            <p className="pricingIndividualTeamSuiteNote">
+              Save more with the Suite plan at <strong>$69.99/month</strong> for both tools and up
+              to 10 seats.
+            </p>
+          </div>
+          <div className="pricingIndividualTeamCtaWrap">
+            <button
+              type="button"
+              className="pricingCta pricingCtaSecondary"
+              aria-label={getCtaAriaLabel("Contact us", "Team")}
+            >
+              Contact us
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function IndividualCard({ tier, toolName }: { tier: IndividualTier; toolName: string }) {
   const headingId = `pricing-ind-heading-${toolName}-${tier.id}`;
   const featuresId = `pricing-ind-features-${toolName}-${tier.id}`;
@@ -277,8 +333,10 @@ export default function Pricing() {
               </ul>
             </div>
           </div>
+          <IndividualTeamTier />
           <p className="pricingIndividualNote">
-            Save 20% by switching to the suite plan.
+            Prefer both tools with shared seats? Switch to the <strong>Suite</strong> tab for the full
+            bundle and team pricing.
           </p>
         </>
       )}
