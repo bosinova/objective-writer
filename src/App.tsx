@@ -271,6 +271,10 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [saveTitle, setSaveTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [saveModalError, setSaveModalError] = useState<string | null>(null);
 
   const { isSignedIn, user } = useUser();
   const { userId } = useAuth();
@@ -414,22 +418,25 @@ export default function App() {
 
   async function openSaveModal() {
     if (!userId) return;
+    setNewProjectName("");
+    setNewProjectDescription("");
+    setSaveModalError(null);
     const { data: projectData } = await supabase
       .from("projects")
       .select("id, name")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
-    if (projectData && projectData.length > 0) {
-      setProjects(projectData);
-      setSaveTitle(`${blooms} objectives - ${audience}`);
-      setSelectedProjectId(projectData[0].id);
-      setShowSaveModal(true);
-    }
+    setProjects(projectData || []);
+    setSaveTitle(`${blooms} objectives - ${audience}`);
+    setSelectedProjectId(projectData?.[0]?.id || "");
+    setShowNewProjectForm((projectData?.length ?? 0) === 0);
+    setShowSaveModal(true);
   }
 
   async function saveToProject() {
     if (!userId || !selectedProjectId || !saveTitle.trim()) return;
     setSaving(true);
+    setSaveModalError(null);
     const { error } = await supabase.from("saved_items").insert({
       user_id: userId,
       project_id: selectedProjectId,
@@ -447,7 +454,47 @@ export default function App() {
     if (!error) {
       setSaved(true);
       setShowSaveModal(false);
+    } else {
+      setSaveModalError("Failed to save to project.");
     }
+    setSaving(false);
+  }
+
+  async function createAndSaveToProject() {
+    if (!newProjectName.trim() || !userId) return;
+    setSaving(true);
+    setSaveModalError(null);
+    const { data: newProject, error: projectError } = await supabase
+      .from("projects")
+      .insert({ user_id: userId, name: newProjectName.trim(), description: newProjectDescription.trim() || null })
+      .select()
+      .single();
+    if (projectError || !newProject) {
+      setSaveModalError("Failed to create project.");
+      setSaving(false);
+      return;
+    }
+    const { error: itemError } = await supabase.from("saved_items").insert({
+      user_id: userId,
+      project_id: newProject.id,
+      type: "objective",
+      title: saveTitle.trim(),
+      content: {
+        blooms_level: blooms,
+        audience,
+        objectives: objectives.map((o) => ({
+          text: o.text,
+          activities: activitiesByObjectiveId[o.id] || [],
+        })),
+      },
+    });
+    if (itemError) {
+      setSaveModalError("Project created but failed to save item.");
+      setSaving(false);
+      return;
+    }
+    setSaved(true);
+    setShowSaveModal(false);
     setSaving(false);
   }
 
@@ -830,6 +877,11 @@ export default function App() {
             padding: "24px", width: "100%", maxWidth: "420px", boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
           }}>
             <h2 style={{ margin: "0 0 16px", fontSize: "1.1rem" }}>Save to Project</h2>
+            {saveModalError && (
+              <div className="callout calloutError" style={{ marginBottom: "12px" }}>
+                {saveModalError}
+              </div>
+            )}
             <div className="field" style={{ marginBottom: "12px" }}>
               <label className="label">Title</label>
               <input
@@ -839,24 +891,85 @@ export default function App() {
                 placeholder="Give this set of objectives a title"
               />
             </div>
-            <div className="field" style={{ marginBottom: "20px" }}>
-              <label className="label">Project</label>
-              <select
-                className="select"
-                value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button className="button" onClick={saveToProject} disabled={saving || !saveTitle.trim()}>
-                {saving ? "Saving..." : "Save"}
-              </button>
-              <button className="copyButton" onClick={() => setShowSaveModal(false)}>Cancel</button>
-            </div>
+            {showNewProjectForm ? (
+              <>
+                <div className="field" style={{ marginBottom: "8px" }}>
+                  <label className="label">Project name</label>
+                  <input
+                    className="input"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="New project name"
+                  />
+                </div>
+                <div className="field" style={{ marginBottom: "16px" }}>
+                  <label className="label">Description (optional)</label>
+                  <input
+                    className="input"
+                    value={newProjectDescription}
+                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                    placeholder="Project description"
+                  />
+                </div>
+                <div style={{ display: "flex", gap: "8px", marginBottom: projects.length > 0 ? "12px" : 0 }}>
+                  <button
+                    className="button"
+                    onClick={createAndSaveToProject}
+                    disabled={saving || !saveTitle.trim() || !newProjectName.trim()}
+                  >
+                    {saving ? "Saving..." : "Create & Save"}
+                  </button>
+                  <button className="copyButton" onClick={() => setShowSaveModal(false)}>Cancel</button>
+                </div>
+                {projects.length > 0 && (
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "0.8rem", cursor: "pointer", padding: 0 }}
+                    onClick={() => setShowNewProjectForm(false)}
+                  >
+                    ← Back to projects
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="field" style={{ marginBottom: "12px" }}>
+                  <label className="label">Project</label>
+                  <select
+                    className="select"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    disabled={projects.length === 0}
+                  >
+                    {projects.length === 0 ? (
+                      <option value="">No projects yet</option>
+                    ) : (
+                      projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="copyButton"
+                  style={{ marginBottom: "16px" }}
+                  onClick={() => setShowNewProjectForm(true)}
+                >
+                  + New Project
+                </button>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    className="button"
+                    onClick={saveToProject}
+                    disabled={saving || !saveTitle.trim() || !selectedProjectId}
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button className="copyButton" onClick={() => setShowSaveModal(false)}>Cancel</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
