@@ -1,7 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { supabase, Project, SavedItem } from "./supabase";
+import {
+  downloadProjectAsDocx,
+  downloadProjectAsText,
+  openProjectPrintWindow,
+} from "./projectExport";
 
 type Activity = {
   activityType: string;
@@ -44,6 +49,9 @@ export default function Dashboard() {
   const [noteContent, setNoteContent] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportingDocx, setExportingDocx] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) navigate("/");
@@ -53,6 +61,17 @@ export default function Dashboard() {
     if (!userId) return;
     fetchProjects();
   }, [userId]);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [exportMenuOpen]);
 
   async function fetchProjects() {
     setLoadingProjects(true);
@@ -254,22 +273,6 @@ export default function Dashboard() {
     setSavingNote(false);
   }
 
-  function exportProject() {
-    if (!selectedProject) return;
-    const exportData = {
-      project: selectedProject,
-      items: items,
-      exportedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${selectedProject.name.replace(/\s+/g, "-").toLowerCase()}-export.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
   function getItemTypeLabel(type: string) {
     const labels: Record<string, string> = {
       objective: "Objectives",
@@ -279,6 +282,31 @@ export default function Dashboard() {
       note: "Note",
     };
     return labels[type] || type;
+  }
+
+  function handleExportPdf() {
+    if (!selectedProject) return;
+    openProjectPrintWindow(selectedProject, items, getItemTypeLabel);
+    setExportMenuOpen(false);
+  }
+
+  function handleExportTxt() {
+    if (!selectedProject) return;
+    downloadProjectAsText(selectedProject, items, getItemTypeLabel);
+    setExportMenuOpen(false);
+  }
+
+  async function handleExportDocx() {
+    if (!selectedProject) return;
+    setExportingDocx(true);
+    try {
+      await downloadProjectAsDocx(selectedProject, items, getItemTypeLabel);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not export Word document.");
+    } finally {
+      setExportingDocx(false);
+      setExportMenuOpen(false);
+    }
   }
 
   function renderItemContent(item: SavedItem) {
@@ -468,9 +496,49 @@ export default function Dashboard() {
                   <p style={{ margin: "4px 0 0", opacity: 0.6, fontSize: "0.875rem" }}>{selectedProject.description}</p>
                 )}
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
                 <button className="copyButton" onClick={() => setShowNoteForm((v) => !v)}>+ Add Note</button>
-                <button className="copyButton" onClick={exportProject}>Export</button>
+                <div ref={exportMenuRef} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    className="copyButton"
+                    aria-expanded={exportMenuOpen}
+                    aria-haspopup="menu"
+                    aria-controls="dashboard-export-menu"
+                    onClick={() => setExportMenuOpen((v) => !v)}
+                  >
+                    Export ▾
+                  </button>
+                  {exportMenuOpen && (
+                    <div id="dashboard-export-menu" role="menu" className="dashboardExportMenu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="dashboardExportMenuItem"
+                        onClick={handleExportPdf}
+                      >
+                        Export as PDF
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="dashboardExportMenuItem"
+                        disabled={exportingDocx}
+                        onClick={() => void handleExportDocx()}
+                      >
+                        {exportingDocx ? "Preparing Word…" : "Export as Word (.docx)"}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="dashboardExportMenuItem"
+                        onClick={handleExportTxt}
+                      >
+                        Export as Text (.txt)
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

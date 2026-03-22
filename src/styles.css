@@ -1084,6 +1084,64 @@ body {
   background: rgba(37, 99, 235, 0.08);
 }
 
+/* Dashboard — export format dropdown */
+.dashboardExportMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  min-width: 260px;
+  z-index: 200;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--surface1, #1a2236);
+  border: 1px solid var(--stroke, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+:root[data-theme="light"] .dashboardExportMenu {
+  background: var(--surface1, #ffffff);
+  border: 1px solid var(--stroke, rgba(148, 163, 184, 0.45));
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.dashboardExportMenuItem {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.05px;
+  color: var(--text, rgba(255, 255, 255, 0.92));
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.dashboardExportMenuItem:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dashboardExportMenuItem:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+:root[data-theme="light"] .dashboardExportMenuItem {
+  color: var(--text, #0f172a);
+}
+
+:root[data-theme="light"] .dashboardExportMenuItem:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
 .footerNote {
   padding: 10px 16px 0 16px;
   color: var(--subtle);
