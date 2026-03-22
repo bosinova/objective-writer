@@ -5,6 +5,7 @@ import {
   Paragraph,
   TextRun,
 } from "docx";
+import { jsPDF } from "jspdf";
 import type { Project, SavedItem } from "./supabase";
 
 type Activity = {
@@ -12,14 +13,6 @@ type Activity = {
   description: string;
   whyItFits: string;
 };
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function normalizeObjectives(
   content: Record<string, unknown>,
@@ -136,143 +129,220 @@ export function buildProjectPlainText(
   return parts.join("\n").trimEnd() + "\n";
 }
 
-function buildItemHtmlBlock(
-  item: SavedItem,
-  getItemTypeLabel: (type: string) => string,
-): string {
-  const badge = escapeHtml(getItemTypeLabel(item.type));
-  const title = escapeHtml(item.title);
-  const bodyLines = itemBodyLines(item);
-  const bodyHtml =
-    item.type === "note"
-      ? bodyLines.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("")
-      : item.type === "objective"
-        ? (() => {
-            const content = item.content as Record<string, unknown>;
-            const objs = normalizeObjectives(content);
-            if (objs.length === 0) return "<p><em>(No objectives)</em></p>";
-            return `<ol>${objs
-              .map((obj) => {
-                const acts =
-                  obj.activities.length > 0
-                    ? `<ul>${obj.activities
-                        .map(
-                          (a) =>
-                            `<li><strong>${escapeHtml(a.activityType)}</strong> — ${escapeHtml(a.description)}${
-                              a.whyItFits ? ` <em>(${escapeHtml(a.whyItFits)})</em>` : ""
-                            }</li>`,
-                        )
-                        .join("")}</ul>`
-                    : "";
-                return `<li><p>${escapeHtml(obj.text)}</p>${acts}</li>`;
-              })
-              .join("")}</ol>`;
-          })()
-        : item.type === "outline"
-          ? (() => {
-              const content = item.content as Record<string, unknown>;
-              const courseTitle = escapeHtml((content.courseTitle as string) || "Untitled course");
-              const targetAudience = escapeHtml((content.targetAudience as string) || "");
-              const estimatedDuration = escapeHtml((content.estimatedDuration as string) || "");
-              const meta = [targetAudience, estimatedDuration].filter(Boolean).join(" · ");
-              const modules = (content.modules as {
-                moduleTitle?: string;
-                moduleDescription?: string;
-                lessons?: { title?: string; estimatedDuration?: string }[];
-                activities?: { activityType?: string; activityDescription?: string }[];
-              }[]) || [];
-              let html = `<div class="outline-meta"><strong>${courseTitle}</strong>`;
-              if (meta) html += `<br/><span>${escapeHtml(meta)}</span>`;
-              html += `</div>`;
-              modules.forEach((mod, mi) => {
-                html += `<h3>${escapeHtml(mod.moduleTitle || `Module ${mi + 1}`)}</h3>`;
-                if (mod.moduleDescription) html += `<p>${escapeHtml(mod.moduleDescription)}</p>`;
-                if (mod.lessons?.length) {
-                  html += `<p><strong>Lessons</strong></p><ol>`;
-                  mod.lessons.forEach((les) => {
-                    const dur = les.estimatedDuration ? ` (${escapeHtml(les.estimatedDuration)})` : "";
-                    html += `<li>${escapeHtml(les.title || "")}${dur}</li>`;
-                  });
-                  html += `</ol>`;
-                }
-                if (mod.activities?.length) {
-                  html += `<p><strong>Activities</strong></p><ul>`;
-                  mod.activities.forEach((a) => {
-                    html += `<li><strong>${escapeHtml(a.activityType || "")}</strong> — ${escapeHtml(
-                      a.activityDescription || "",
-                    )}</li>`;
-                  });
-                  html += `</ul>`;
-                }
-              });
-              return html;
-            })()
-          : `<pre>${escapeHtml(bodyLines.join("\n"))}</pre>`;
-
-  return `
-    <section class="export-item">
-      <div class="export-item-head">
-        <span class="export-badge">${badge}</span>
-        <h2 class="export-item-title">${title}</h2>
-      </div>
-      <div class="export-item-body">${bodyHtml}</div>
-    </section>
-  `;
+function safePdfFileBase(name: string): string {
+  const trimmed = name.trim() || "project";
+  return (
+    trimmed
+      .replace(/[/\\?%*:|"<>]/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "project"
+  );
 }
 
-export function openProjectPrintWindow(
+/**
+ * Builds a PDF with project title, description, and all saved items (objectives, outlines, notes).
+ * Downloads as `[project-name].pdf` (sanitized).
+ */
+export function downloadProjectAsPdf(
   project: Project,
   items: SavedItem[],
   getItemTypeLabel: (type: string) => string,
 ): void {
-  const itemsHtml = items.map((item) => buildItemHtmlBlock(item, getItemTypeLabel)).join("");
-  const desc = project.description ? `<p class="project-desc">${escapeHtml(project.description)}</p>` : "";
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 48;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const contentW = pageW - margin * 2;
+  /** Baseline below top margin (room for first line of text). */
+  let y = margin + 18;
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <title>${escapeHtml(project.name)} — Export</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5; color: #111; margin: 0; padding: 24px 32px; max-width: 800px; margin-left: auto; margin-right: auto; }
-    h1 { font-size: 1.75rem; margin: 0 0 8px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; }
-    .project-desc { margin: 0 0 32px; color: #444; font-size: 0.95rem; }
-    .export-item { page-break-inside: avoid; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #ddd; }
-    .export-item:last-child { border-bottom: none; }
-    .export-item-head { margin-bottom: 12px; }
-    .export-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; background: #1e3a8a; color: #fff; padding: 4px 10px; border-radius: 999px; margin-right: 8px; vertical-align: middle; }
-    .export-item-title { display: inline; font-size: 1.15rem; font-weight: 600; margin: 0; vertical-align: middle; }
-    .export-item-body { margin-top: 8px; font-size: 0.9rem; }
-    .export-item-body ol, .export-item-body ul { margin: 8px 0; padding-left: 1.25rem; }
-    .export-item-body li { margin-bottom: 6px; }
-    .outline-meta { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
-    pre { white-space: pre-wrap; font-size: 0.8rem; background: #f5f5f5; padding: 12px; border-radius: 8px; }
-    @media print {
-      body { padding: 12px 20px; }
-      .export-item { page-break-inside: avoid; }
+  function ensureSpace(needed: number): void {
+    if (y + needed > pageH - margin) {
+      doc.addPage();
+      y = margin + 18;
     }
-  </style>
-</head>
-<body>
-  <h1>${escapeHtml(project.name)}</h1>
-  ${desc}
-  ${itemsHtml}
-</body>
-</html>`;
-
-  const w = window.open("", "_blank", "noopener,noreferrer");
-  if (!w) {
-    alert("Please allow pop-ups to print or save as PDF.");
-    return;
   }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => {
-    w.print();
-  }, 250);
+
+  function flushLines(lines: string[], x: number, fontSize: number, lineGap: number, style: "normal" | "bold" | "italic"): void {
+    doc.setFont("helvetica", style === "bold" ? "bold" : style === "italic" ? "italic" : "normal");
+    doc.setFontSize(fontSize);
+    for (const raw of lines) {
+      const wrapped = doc.splitTextToSize(raw, contentW - (x - margin));
+      for (const wline of wrapped) {
+        ensureSpace(lineGap + 2);
+        doc.text(wline, x, y);
+        y += lineGap;
+      }
+    }
+  }
+
+  function addParagraph(text: string, fontSize = 11, lineGap = 14, indent = 0): void {
+    flushLines([text], margin + indent, fontSize, lineGap, "normal");
+  }
+
+  function addHeading(text: string, fontSize: number, lineGap: number): void {
+    flushLines([text], margin, fontSize, lineGap, "bold");
+  }
+
+  // Title — project name
+  addHeading(project.name, 20, 24);
+  y += 8;
+
+  if (project.description?.trim()) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(60, 60, 60);
+    const descLines = doc.splitTextToSize(project.description.trim(), contentW);
+    for (const line of descLines) {
+      ensureSpace(15);
+      doc.text(line, margin, y);
+      y += 15;
+    }
+    doc.setTextColor(0, 0, 0);
+    y += 16;
+  } else {
+    y += 12;
+  }
+
+  const sectionTopGap = 28;
+  const afterHeaderGap = 10;
+
+  for (const item of items) {
+    y += sectionTopGap;
+    ensureSpace(36);
+    const header = `${getItemTypeLabel(item.type)} — ${item.title}`;
+    addHeading(header, 13, 16);
+    y += afterHeaderGap;
+
+    if (item.type === "objective") {
+      const objs = normalizeObjectives(item.content as Record<string, unknown>);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      objs.forEach((obj, i) => {
+        const numbered = `${i + 1}. ${obj.text}`;
+        const lines = doc.splitTextToSize(numbered, contentW - 8);
+        for (const line of lines) {
+          ensureSpace(15);
+          doc.text(line, margin + 4, y);
+          y += 15;
+        }
+        obj.activities.forEach((a) => {
+          const actText = `• ${[a.activityType, a.description].filter(Boolean).join(" — ")}${
+            a.whyItFits ? ` (${a.whyItFits})` : ""
+          }`;
+          const actWrapped = doc.splitTextToSize(actText, contentW - 28);
+          for (const al of actWrapped) {
+            ensureSpace(13);
+            doc.text(al, margin + 20, y);
+            y += 13;
+          }
+        });
+        y += 4;
+      });
+    } else if (item.type === "note") {
+      const body = ((item.content as Record<string, unknown>).body as string) || "";
+      const paras = body.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+      paras.forEach((para, pi) => {
+        const wrapped = doc.splitTextToSize(para, contentW);
+        for (const line of wrapped) {
+          ensureSpace(14);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(11);
+          doc.text(line, margin, y);
+          y += 14;
+        }
+        if (pi < paras.length - 1) y += 10;
+      });
+    } else if (item.type === "outline") {
+      const c = item.content as Record<string, unknown>;
+      const courseTitle = (c.courseTitle as string) || "Untitled course";
+      const targetAudience = (c.targetAudience as string) || "";
+      const estimatedDuration = (c.estimatedDuration as string) || "";
+      addHeading(courseTitle, 12, 15);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const meta = [targetAudience, estimatedDuration].filter(Boolean).join(" · ");
+      if (meta) {
+        const metaWrapped = doc.splitTextToSize(meta, contentW);
+        for (const line of metaWrapped) {
+          ensureSpace(13);
+          doc.setTextColor(80, 80, 80);
+          doc.text(line, margin, y);
+          y += 13;
+        }
+        doc.setTextColor(0, 0, 0);
+      }
+      y += 8;
+
+      const modules = (c.modules as {
+        moduleTitle?: string;
+        moduleDescription?: string;
+        lessons?: { title?: string; estimatedDuration?: string }[];
+        activities?: { activityType?: string; activityDescription?: string }[];
+      }[]) || [];
+
+      modules.forEach((mod, mi) => {
+        y += 6;
+        addHeading(mod.moduleTitle || `Module ${mi + 1}`, 12, 15);
+        if (mod.moduleDescription?.trim()) {
+          addParagraph(mod.moduleDescription.trim(), 10, 13, 0);
+        }
+        if (mod.lessons?.length) {
+          ensureSpace(14);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.text("Lessons", margin, y);
+          y += 14;
+          mod.lessons.forEach((les, li) => {
+            const dur = les.estimatedDuration ? ` (${les.estimatedDuration})` : "";
+            const lesLine = `${li + 1}. ${les.title || "Lesson"}${dur}`;
+            const lw = doc.splitTextToSize(lesLine, contentW - 16);
+            for (const line of lw) {
+              ensureSpace(13);
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(10);
+              doc.text(line, margin + 12, y);
+              y += 13;
+            }
+          });
+        }
+        if (mod.activities?.length) {
+          y += 4;
+          ensureSpace(14);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.text("Activities", margin, y);
+          y += 14;
+          mod.activities.forEach((a) => {
+            const line = `• ${a.activityType || ""} — ${a.activityDescription || ""}`;
+            const aw = doc.splitTextToSize(line, contentW - 16);
+            for (const al of aw) {
+              ensureSpace(13);
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(10);
+              doc.text(al, margin + 12, y);
+              y += 13;
+            }
+          });
+        }
+      });
+    } else {
+      const json = JSON.stringify(item.content, null, 2);
+      const wrapped = doc.splitTextToSize(json, contentW);
+      doc.setFont("courier", "normal");
+      doc.setFontSize(8);
+      for (const line of wrapped) {
+        ensureSpace(10);
+        doc.text(line, margin, y);
+        y += 10;
+      }
+      doc.setFont("helvetica", "normal");
+    }
+  }
+
+  const base = safePdfFileBase(project.name);
+  doc.save(`${base}.pdf`);
 }
 
 function downloadBlob(blob: Blob, filename: string): void {

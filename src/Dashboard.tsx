@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase, Project, SavedItem } from "./supabase";
 import {
   downloadProjectAsDocx,
+  downloadProjectAsPdf,
   downloadProjectAsText,
-  openProjectPrintWindow,
 } from "./projectExport";
 
 type Activity = {
@@ -286,7 +286,7 @@ export default function Dashboard() {
 
   function handleExportPdf() {
     if (!selectedProject) return;
-    openProjectPrintWindow(selectedProject, items, getItemTypeLabel);
+    downloadProjectAsPdf(selectedProject, items, getItemTypeLabel);
     setExportMenuOpen(false);
   }
 
