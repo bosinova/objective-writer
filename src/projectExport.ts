@@ -101,6 +101,20 @@ function itemBodyLines(item: SavedItem): string[] {
   return lines;
 }
 
+/** Full plain text for one saved item (clipboard, email body). */
+export function getSavedItemFullPlainText(
+  item: SavedItem,
+  getItemTypeLabel: (type: string) => string,
+): string {
+  const header = `${getItemTypeLabel(item.type)}: ${item.title}`;
+  if (item.type === "note") {
+    const body = ((item.content as Record<string, unknown>).body as string) || "";
+    return `${header}\n\n${body}`.trim();
+  }
+  const body = itemBodyLines(item).join("\n");
+  return `${header}\n\n${body}`.trim();
+}
+
 export function buildProjectPlainText(
   project: Project,
   items: SavedItem[],
@@ -342,6 +356,196 @@ export function downloadProjectAsPdf(
   }
 
   const base = safePdfFileBase(project.name);
+  doc.save(`${base}.pdf`);
+}
+
+/**
+ * Downloads a single saved item as a PDF (project name optional subtitle).
+ */
+export function downloadSavedItemAsPdf(
+  item: SavedItem,
+  getItemTypeLabel: (type: string) => string,
+  options?: { projectName?: string },
+): void {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 48;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const contentW = pageW - margin * 2;
+  let y = margin + 18;
+
+  function ensureSpace(needed: number): void {
+    if (y + needed > pageH - margin) {
+      doc.addPage();
+      y = margin + 18;
+    }
+  }
+
+  function flushLines(lines: string[], x: number, fontSize: number, lineGap: number, style: "normal" | "bold" | "italic"): void {
+    doc.setFont("helvetica", style === "bold" ? "bold" : style === "italic" ? "italic" : "normal");
+    doc.setFontSize(fontSize);
+    for (const raw of lines) {
+      const wrapped = doc.splitTextToSize(raw, contentW - (x - margin));
+      for (const wline of wrapped) {
+        ensureSpace(lineGap + 2);
+        doc.text(wline, x, y);
+        y += lineGap;
+      }
+    }
+  }
+
+  function addParagraph(text: string, fontSize = 11, lineGap = 14, indent = 0): void {
+    flushLines([text], margin + indent, fontSize, lineGap, "normal");
+  }
+
+  function addHeading(text: string, fontSize: number, lineGap: number): void {
+    flushLines([text], margin, fontSize, lineGap, "bold");
+  }
+
+  if (options?.projectName?.trim()) {
+    addHeading(options.projectName.trim(), 12, 16);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    ensureSpace(12);
+    doc.text("Project", margin, y);
+    y += 14;
+    doc.setTextColor(0, 0, 0);
+  }
+
+  addHeading(`${getItemTypeLabel(item.type)} — ${item.title}`, 15, 20);
+  y += 12;
+
+  if (item.type === "objective") {
+    const objs = normalizeObjectives(item.content as Record<string, unknown>);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    objs.forEach((obj, i) => {
+      const numbered = `${i + 1}. ${obj.text}`;
+      const lines = doc.splitTextToSize(numbered, contentW - 8);
+      for (const line of lines) {
+        ensureSpace(15);
+        doc.text(line, margin + 4, y);
+        y += 15;
+      }
+      obj.activities.forEach((a) => {
+        const actText = `• ${[a.activityType, a.description].filter(Boolean).join(" — ")}${
+          a.whyItFits ? ` (${a.whyItFits})` : ""
+        }`;
+        const actWrapped = doc.splitTextToSize(actText, contentW - 28);
+        for (const al of actWrapped) {
+          ensureSpace(13);
+          doc.text(al, margin + 20, y);
+          y += 13;
+        }
+      });
+      y += 4;
+    });
+  } else if (item.type === "note") {
+    const body = ((item.content as Record<string, unknown>).body as string) || "";
+    const paras = body.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    if (paras.length === 0 && body.trim()) {
+      paras.push(body.trim());
+    }
+    paras.forEach((para, pi) => {
+      const wrapped = doc.splitTextToSize(para, contentW);
+      for (const line of wrapped) {
+        ensureSpace(14);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.text(line, margin, y);
+        y += 14;
+      }
+      if (pi < paras.length - 1) y += 10;
+    });
+  } else if (item.type === "outline") {
+    const c = item.content as Record<string, unknown>;
+    const courseTitle = (c.courseTitle as string) || "Untitled course";
+    const targetAudience = (c.targetAudience as string) || "";
+    const estimatedDuration = (c.estimatedDuration as string) || "";
+    addHeading(courseTitle, 12, 15);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const meta = [targetAudience, estimatedDuration].filter(Boolean).join(" · ");
+    if (meta) {
+      const metaWrapped = doc.splitTextToSize(meta, contentW);
+      for (const line of metaWrapped) {
+        ensureSpace(13);
+        doc.setTextColor(80, 80, 80);
+        doc.text(line, margin, y);
+        y += 13;
+      }
+      doc.setTextColor(0, 0, 0);
+    }
+    y += 8;
+
+    const modules = (c.modules as {
+      moduleTitle?: string;
+      moduleDescription?: string;
+      lessons?: { title?: string; estimatedDuration?: string }[];
+      activities?: { activityType?: string; activityDescription?: string }[];
+    }[]) || [];
+
+    modules.forEach((mod, mi) => {
+      y += 6;
+      addHeading(mod.moduleTitle || `Module ${mi + 1}`, 12, 15);
+      if (mod.moduleDescription?.trim()) {
+        addParagraph(mod.moduleDescription.trim(), 10, 13, 0);
+      }
+      if (mod.lessons?.length) {
+        ensureSpace(14);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("Lessons", margin, y);
+        y += 14;
+        mod.lessons.forEach((les, li) => {
+          const dur = les.estimatedDuration ? ` (${les.estimatedDuration})` : "";
+          const lesLine = `${li + 1}. ${les.title || "Lesson"}${dur}`;
+          const lw = doc.splitTextToSize(lesLine, contentW - 16);
+          for (const line of lw) {
+            ensureSpace(13);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            doc.text(line, margin + 12, y);
+            y += 13;
+          }
+        });
+      }
+      if (mod.activities?.length) {
+        y += 4;
+        ensureSpace(14);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("Activities", margin, y);
+        y += 14;
+        mod.activities.forEach((a) => {
+          const line = `• ${a.activityType || ""} — ${a.activityDescription || ""}`;
+          const aw = doc.splitTextToSize(line, contentW - 16);
+          for (const al of aw) {
+            ensureSpace(13);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            doc.text(al, margin + 12, y);
+            y += 13;
+          }
+        });
+      }
+    });
+  } else {
+    const json = JSON.stringify(item.content, null, 2);
+    const wrapped = doc.splitTextToSize(json, contentW);
+    doc.setFont("courier", "normal");
+    doc.setFontSize(8);
+    for (const line of wrapped) {
+      ensureSpace(10);
+      doc.text(line, margin, y);
+      y += 10;
+    }
+    doc.setFont("helvetica", "normal");
+  }
+
+  const base = safePdfFileBase(item.title);
   doc.save(`${base}.pdf`);
 }
 

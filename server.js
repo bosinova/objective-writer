@@ -31,6 +31,33 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+function buildDashboardPlainEmail(title, plainContent) {
+  const safeTitle = escapeHtml(typeof title === "string" && title.trim() ? title.trim() : "Your content");
+  const escapedBody = escapeHtml(typeof plainContent === "string" ? plainContent : "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n/g, "<br/>");
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${safeTitle}</title></head>
+<body style="margin:0;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;background:#f3f4f6;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+    <div style="padding:20px 24px;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);">
+      <p style="margin:0;font-size:18px;font-weight:700;color:#fff;">Prism</p>
+      <p style="margin:4px 0 0 0;font-size:12px;color:rgba(255,255,255,0.85);">Prism Learning Design</p>
+    </div>
+    <div style="padding:24px;">
+      <h1 style="margin:0 0 16px 0;font-size:16px;font-weight:700;color:#0f172a;">${safeTitle}</h1>
+      <div style="margin:0;font-size:13px;color:#374151;line-height:1.55;word-break:break-word;">${escapedBody}</div>
+    </div>
+    <div style="padding:16px 24px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#6b7280;">Saved from your Prism project dashboard.</p>
+    </div>
+  </div>
+</body>
+</html>`.trim();
+}
+
 function buildHtmlEmail(objectives, activities) {
   const objectivesHtml = (objectives || [])
     .map(
@@ -95,8 +122,39 @@ app.post("/api/email", async (req, res) => {
   if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
     return res.status(400).json({ error: "Valid email address (to) is required." });
   }
+  const plainContent = typeof body.plainContent === "string" ? body.plainContent.trim() : "";
+  if (plainContent) {
+    const title =
+      typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Your Prism content";
+    const subject =
+      typeof body.subject === "string" && body.subject.trim()
+        ? body.subject.trim()
+        : "Your Prism project content";
+    const html = buildDashboardPlainEmail(title, plainContent);
+    try {
+      const resend = new Resend(apiKey);
+      const { data, error } = await resend.emails.send({
+        from: EMAIL_FROM,
+        to: [to],
+        subject,
+        html,
+      });
+      if (error) {
+        console.error("[Objective Writer server] Resend error:", error);
+        return res.status(500).json({ error: error.message || "Failed to send email." });
+      }
+      return res.json({ success: true, id: data?.id });
+    } catch (err) {
+      console.error("[Objective Writer server] Email error:", err);
+      return res.status(500).json({ error: err.message || "Failed to send email." });
+    }
+  }
+
   const objectives = Array.isArray(body.objectives) ? body.objectives : [];
   const activities = Array.isArray(body.activities) ? body.activities : [];
+  if (objectives.length === 0) {
+    return res.status(400).json({ error: "objectives or plainContent is required." });
+  }
   const html = buildHtmlEmail(objectives, activities);
   try {
     const resend = new Resend(apiKey);
