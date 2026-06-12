@@ -176,7 +176,7 @@ app.post("/api/email", async (req, res) => {
 });
 
 app.post("/api/generate", async (req, res) => {
-  const apiKey = process.env.VITE_ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({ error: "Anthropic API key is not configured on the server." });
